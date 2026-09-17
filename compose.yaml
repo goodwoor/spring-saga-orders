@@ -1,9 +1,28 @@
 services:
-  postgres:
-    image: 'postgres:latest'
-    environment:
-      - 'POSTGRES_DB=mydatabase'
-      - 'POSTGRES_PASSWORD=secret'
-      - 'POSTGRES_USER=myuser'
+  gateway:
+    image: saga/gateway:0.0.1-SNAPSHOT
     ports:
-      - '5432'
+      - "8081:8081"
+    environment:
+      - INVENTORY_URI=http://inventory:8082
+      - ORDER_URI=http://order:8083
+      - PAYMENT_URI=http://payment:8084
+    depends_on:
+      - inventory
+      - order
+      - payment
+
+  inventory:
+    image: saga/inventory:0.0.1-SNAPSHOT
+    ports:
+      - "8082:8082"
+
+  order:
+    image: saga/order:0.0.1-SNAPSHOT
+    ports:
+      - "8083:8083"
+
+  payment:
+    image: saga/payment:0.0.1-SNAPSHOT
+    ports:
+      - "8084:8084"
