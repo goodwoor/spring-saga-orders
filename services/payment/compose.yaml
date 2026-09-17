@@ -1,0 +1,22 @@
+services:
+
+  # ==== Инфраструктура — поднимается всегда, без профиля ====
+  postgres-payment:
+    image: postgres:16
+    ports: [ "5434:5432" ]
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./data:/var/lib/postgresql/data
+
+  # ==== Сервисы-приложения — только при --profile apps ====
+  payment:
+    image: saga/payment:0.0.1-SNAPSHOT
+    ports:
+      - "8084:8084"
+    depends_on:
+      - postgres-payment
+      - kafka
+    profiles: ["apps"]

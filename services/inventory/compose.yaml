@@ -1,0 +1,22 @@
+services:
+
+  # ==== Инфраструктура — поднимается всегда, без профиля ====
+  postgres-inventory:
+    image: postgres:16
+    ports: [ "5435:5432" ]
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./data:/var/lib/postgresql/data
+
+  # ==== Сервисы-приложения — только при --profile apps ====
+  inventory:
+    image: saga/inventory:0.0.1-SNAPSHOT
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres-inventory
+      - kafka
+    profiles: ["apps"]

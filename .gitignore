@@ -1,5 +1,8 @@
 HELP.md
 target/
+
+### Local Postgres data (Docker bind mounts) ###
+services/*/data/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

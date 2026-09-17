@@ -1,30 +1,6 @@
 services:
 
   # ==== Инфраструктура — поднимается всегда, без профиля ====
-  postgres-order:
-    image: postgres:16
-    ports: [ "5433:5432" ]
-    environment:
-      POSTGRES_DB: orders
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-
-  postgres-payment:
-    image: postgres:16
-    ports: [ "5434:5432" ]
-    environment:
-      POSTGRES_DB: payments
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-
-  postgres-inventory:
-    image: postgres:16
-    ports: [ "5435:5432" ]
-    environment:
-      POSTGRES_DB: inventory
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-
   kafka:
     image: confluentinc/cp-kafka:latest
     ports: [ "9092:9092" ]
@@ -37,45 +13,3 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-
-  # ==== Сервисы-приложения — только при --profile apps ====
-  gateway:
-    image: saga/gateway:0.0.1-SNAPSHOT
-    ports:
-      - "8081:8081"
-    environment:
-      - INVENTORY_URI=http://inventory:8082
-      - ORDER_URI=http://order:8083
-      - PAYMENT_URI=http://payment:8084
-    depends_on:
-      - inventory
-      - order
-      - payment
-    profiles: ["apps"]
-
-  inventory:
-    image: saga/inventory:0.0.1-SNAPSHOT
-    ports:
-      - "8082:8082"
-    depends_on:
-      - postgres-inventory
-      - kafka
-    profiles: ["apps"]
-
-  order:
-    image: saga/order:0.0.1-SNAPSHOT
-    ports:
-      - "8083:8083"
-    depends_on:
-      - postgres-order
-      - kafka
-    profiles: ["apps"]
-
-  payment:
-    image: saga/payment:0.0.1-SNAPSHOT
-    ports:
-      - "8084:8084"
-    depends_on:
-      - postgres-payment
-      - kafka
-    profiles: ["apps"]

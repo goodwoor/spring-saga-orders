@@ -1,0 +1,31 @@
+services:
+
+  # ==== Инфраструктура — поднимается всегда, без профиля ====
+  postgres-order:
+    image: postgres:16
+    ports: [ "5433:5432" ]
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./data:/var/lib/postgresql/data
+
+  # ==== Сервисы-приложения — только при --profile apps ====
+  order:
+    image: saga/order:0.0.1-SNAPSHOT
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres-order
+      - kafka
+    profiles: ["apps"]
+
+  payment:
+    image: saga/payment:0.0.1-SNAPSHOT
+    ports:
+      - "8084:8084"
+    depends_on:
+      - postgres-payment
+      - kafka
+    profiles: ["apps"]

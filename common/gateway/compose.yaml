@@ -1,0 +1,16 @@
+services:
+
+  # ==== Сервисы-приложения — только при --profile apps ====
+  gateway:
+    image: saga/gateway:0.0.1-SNAPSHOT
+    ports:
+      - "8081:8081"
+    environment:
+      - INVENTORY_URI=http://inventory:8082
+      - ORDER_URI=http://order:8083
+      - PAYMENT_URI=http://payment:8084
+    depends_on:
+      - inventory
+      - order
+      - payment
+    profiles: ["apps"]
