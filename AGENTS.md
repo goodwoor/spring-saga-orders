@@ -5,6 +5,94 @@
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
+> **Для агентов:** начинай с секции [Карта проекта](#карта-проекта--структура-папок) — дерево модулей, порты, схемы БД и ключевые файлы уже зафиксированы; не нужно заново сканировать весь репо.
+
+---
+
+## Карта проекта / структура папок
+
+Maven multi-module (`groupId: saga`, root `artifactId: orders`, Java 21, Spring Boot 4.1.1).
+
+```
+saga-orders/
+├── pom.xml                          # root: modules common + services
+├── compose.yaml                     # общий Kafka (localhost:9092, KRaft)
+├── AGENTS.md                        # этот файл — контекст и карта
+├── .cursor/rules/                   # правила Cursor (ask-before-edits и др.)
+├── .mvn/wrapper/                    # Maven Wrapper
+│
+├── common/                          # packaging pom
+│   ├── pom.xml                      # modules: dto, gateway
+│   ├── dto/                         # shared JAR (spring-boot plugin skip)
+│   │   └── src/main/java/saga/
+│   │       └── ExampleDto.java      # заглушка строк ORDER/INVENTORY/PAYMENT
+│   └── gateway/                     # Spring Cloud Gateway (WebMVC)
+│       ├── compose.yaml
+│       └── src/main/
+│           ├── java/saga/ApiGateway.java
+│           └── resources/application.properties   # routes → сервисы
+│
+└── services/                        # packaging pom + общие deps сервисов
+    ├── pom.xml                      # JPA, Liquibase, Kafka, Web, Resilience4j,
+    │                                # spring-cloud BOM 2025.1.3; depends on dto
+    ├── order/
+    │   ├── compose.yaml             # postgres-order :5433 / DB orders
+    │   └── src/main/
+    │       ├── java/saga/
+    │       │   ├── OrderApplication.java
+    │       │   └── OrderController.java   # GET /order/hello
+    │       └── resources/
+    │           ├── application.properties # port 8083
+    │           └── db/changelog/
+    │               ├── db.changelog-master.yaml
+    │               └── migrations/01-create-tables.sql
+    ├── inventory/
+    │   ├── compose.yaml             # postgres-inventory :5435 / DB inventory
+    │   └── src/main/…               # InventoryApplication, /inventory/hello, 8082
+    └── payment/
+        ├── compose.yaml             # postgres-payment :5434 / DB payments
+        └── src/main/…               # PaymentApplication, /payment/hello, 8084
+```
+
+### Порты и маршруты
+
+| Компонент | HTTP | Postgres host-port | DB name |
+|-----------|------|--------------------|---------|
+| Gateway | **8081** | — | — |
+| Inventory | **8082** (`/inventory/**`) | **5435** | `inventory` |
+| Order | **8083** (`/order/**`) | **5433** | `orders` |
+| Payment | **8084** (`/payment/**`) | **5434** | `payments` |
+| Kafka | — | broker **9092** | — |
+
+Gateway routes (из `common/gateway/.../application.properties`): `/inventory/**` → 8082, `/order/**` → 8083, `/payment/**` → 8084.
+
+### Схемы БД (Liquibase)
+
+| Сервис | Таблицы | Важное |
+|--------|---------|--------|
+| **order** | `orders`, `order_items` | FK items→orders; индексы `user_id`, `order_id` |
+| **inventory** | `items`, `reservations` | UNIQUE `(order_id, item_id)` |
+| **payment** | `payments` | UNIQUE `order_id` (задел под идемпотентность) |
+
+Локальные данные Postgres: `services/*/data/` (в `.gitignore`). Артефакты сборки: `**/target/`.
+
+### Зависимости модулей (кратко)
+
+- **services/**\* наследуют от `services/pom.xml`: WebMVC, JPA, Liquibase, Kafka, Resilience4j, docker-compose, PostgreSQL driver + test starters.
+- **common/dto** — лёгкий JAR, подключён ко всем сервисам.
+- **common/gateway** — Gateway WebMVC + Resilience4j; **без** JPA/Kafka/Liquibase.
+
+### Ключевые файлы «с чего открывать»
+
+| Тема | Путь |
+|------|------|
+| Root / modules | `pom.xml`, `common/pom.xml`, `services/pom.xml` |
+| Kafka infra | `compose.yaml` |
+| Postgres per service | `services/{order,inventory,payment}/compose.yaml` |
+| Миграции | `services/*/src/main/resources/db/changelog/migrations/01-create-tables.sql` |
+| Hello API | `*Controller.java` + `ExampleDto.java` |
+| Gateway routes | `common/gateway/src/main/resources/application.properties` |
+
 ---
 
 ## Зачем проект
@@ -123,9 +211,9 @@
 
 ## Состояние кода (ориентир)
 
-**Есть:** multi-module, Application + hello-контроллеры, gateway, Docker/Kafka compose, Liquibase, схемы миграций под сервисы, индексы.
+**Есть:** multi-module Maven; Application + hello-контроллеры (`/order|/inventory|/payment/hello`); Gateway на 8081; корневой Kafka compose; Postgres compose на сервис; Liquibase master + миграции (`orders`/`order_items`, `items`/`reservations`, `payments` + индексы/UNIQUE); `ExampleDto` заглушка.
 
-**Нет / дальше по плану:** сущности и репозитории end-to-end, Kafka producer/consumer, оркестратор, Outbox, интеграционные тесты.
+**Нет / дальше по плану:** JPA-сущности и репозитории, доменные DTO/события, Kafka producer/consumer, оркестратор Saga, Outbox, слой Service, интеграционные тесты / Testcontainers. Пакетов `entity`/`repository`/`kafka` пока нет — всё в `saga.*` на уровне hello.
 
 Образец слоёв (Controller → Service → Repository, DTO-record, MapStruct): `E:\Dev\java\projects\task1`.
 

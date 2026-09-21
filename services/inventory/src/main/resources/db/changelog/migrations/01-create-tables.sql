@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset goodwoor:1 runOnChange:true
+--changeset goodwoor:1
 CREATE TABLE items (
     id BIGSERIAL PRIMARY KEY,
     cost NUMERIC(19, 2) NOT NULL,

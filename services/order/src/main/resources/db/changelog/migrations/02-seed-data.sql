@@ -1,0 +1,45 @@
+--liquibase formatted sql
+
+--changeset goodwoor:2
+INSERT INTO orders (id, user_id, cost, status, status_changed_date, created_at) VALUES
+    (1,  101,  1599.00, 'CONFIRMED',         TIMESTAMPTZ '2026-09-01 10:15:00+00', TIMESTAMPTZ '2026-09-01 10:00:00+00'),
+    (2,  102,   349.50, 'CONFIRMED',         TIMESTAMPTZ '2026-09-02 11:20:00+00', TIMESTAMPTZ '2026-09-02 11:05:00+00'),
+    (3,  103,  2499.00, 'CANCELLED',         TIMESTAMPTZ '2026-09-03 09:40:00+00', TIMESTAMPTZ '2026-09-03 09:10:00+00'),
+    (4,  101,   899.00, 'AWAITING_PAYMENT',  TIMESTAMPTZ '2026-09-04 14:00:00+00', TIMESTAMPTZ '2026-09-04 13:55:00+00'),
+    (5,  104,  4599.99, 'CONFIRMED',         TIMESTAMPTZ '2026-09-05 16:30:00+00', TIMESTAMPTZ '2026-09-05 16:00:00+00'),
+    (6,  105,   199.00, 'CREATED',           TIMESTAMPTZ '2026-09-06 08:00:00+00', TIMESTAMPTZ '2026-09-06 08:00:00+00'),
+    (7,  102,  1299.00, 'CONFIRMED',         TIMESTAMPTZ '2026-09-07 12:45:00+00', TIMESTAMPTZ '2026-09-07 12:20:00+00'),
+    (8,  106,   749.00, 'CANCELLED',         TIMESTAMPTZ '2026-09-08 17:10:00+00', TIMESTAMPTZ '2026-09-08 16:50:00+00'),
+    (9,  107,  3199.00, 'AWAITING_PAYMENT',  TIMESTAMPTZ '2026-09-09 10:05:00+00', TIMESTAMPTZ '2026-09-09 10:00:00+00'),
+    (10, 103,   599.00, 'CONFIRMED',         TIMESTAMPTZ '2026-09-10 13:25:00+00', TIMESTAMPTZ '2026-09-10 13:00:00+00'),
+    (11, 108,  1899.50, 'CREATED',           TIMESTAMPTZ '2026-09-11 09:30:00+00', TIMESTAMPTZ '2026-09-11 09:30:00+00'),
+    (12, 104,   450.00, 'CONFIRMED',         TIMESTAMPTZ '2026-09-12 15:40:00+00', TIMESTAMPTZ '2026-09-12 15:20:00+00'),
+    (13, 109,  2799.00, 'CANCELLED',         TIMESTAMPTZ '2026-09-13 11:15:00+00', TIMESTAMPTZ '2026-09-13 10:45:00+00'),
+    (14, 101,  1099.00, 'AWAITING_PAYMENT',  TIMESTAMPTZ '2026-09-14 18:00:00+00', TIMESTAMPTZ '2026-09-14 17:55:00+00'),
+    (15, 110,   829.00, 'CONFIRMED',         TIMESTAMPTZ '2026-09-15 07:50:00+00', TIMESTAMPTZ '2026-09-15 07:30:00+00');
+
+INSERT INTO order_items (id, order_id, item_id, amount, cost) VALUES
+    (1,  1,  1,  1,  999.00),
+    (2,  1,  2,  2,  300.00),
+    (3,  2,  3,  1,  349.50),
+    (4,  3,  4,  1, 2499.00),
+    (5,  4,  5,  1,  899.00),
+    (6,  5,  1,  2, 1998.00),
+    (7,  5,  6,  1, 1601.99),
+    (8,  5,  7,  1, 1000.00),
+    (9,  6,  8,  1,  199.00),
+    (10, 7,  2,  1,  150.00),
+    (11, 7,  9,  1, 1149.00),
+    (12, 8, 10,  1,  749.00),
+    (13, 9,  4,  1, 2499.00),
+    (14, 9, 11,  1,  700.00),
+    (15, 10, 12, 2,  599.00),
+    (16, 11, 13, 1, 1899.50),
+    (17, 12,  3, 1,  349.50),
+    (18, 12,  8, 1,  100.50),
+    (19, 13, 14, 1, 2799.00),
+    (20, 14, 15, 1, 1099.00),
+    (21, 15,  5, 1,  829.00);
+
+SELECT setval('orders_id_seq', (SELECT MAX(id) FROM orders));
+SELECT setval('order_items_id_seq', (SELECT MAX(id) FROM order_items));

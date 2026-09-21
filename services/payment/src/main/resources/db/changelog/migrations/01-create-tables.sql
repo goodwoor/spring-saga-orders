@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset goodwoor:1 runOnChange:true
+--changeset goodwoor:1
 CREATE TABLE payments (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
