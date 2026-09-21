@@ -1,7 +1,6 @@
 --liquibase formatted sql
 
 --changeset goodwoor:1 runOnChange:true
--- add indexes
 CREATE TABLE orders (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
