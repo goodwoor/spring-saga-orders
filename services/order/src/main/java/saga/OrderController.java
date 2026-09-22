@@ -6,6 +6,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Заметки по модели, пока нет сущностей.
+ * id — BIGSERIAL, выдаёт Postgres. В транзакции создания читать после saveAndFlush.
+ */
 @RequestMapping("/order")
 @RestController
 public class OrderController {
