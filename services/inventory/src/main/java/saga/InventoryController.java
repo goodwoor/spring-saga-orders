@@ -5,6 +5,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import saga.entity.Item;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Заметки по модели, пока нет сущностей.
@@ -22,14 +26,29 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/inventory")
 @RestController
 public class InventoryController {
+    private final ItemsRepository itemsRepository;
 
     @Autowired
-    InventoryController() {}
+    InventoryController(ItemsRepository itemsRepository) {
+        this.itemsRepository = itemsRepository;
+    }
 
     @GetMapping("/hello")
-    public ResponseEntity<String> getHomePage()
+    public ResponseEntity<List<Map<String, String>>> getHomePage()
     {
-        String dtoResponse = ExampleDto.getInventoryDto();
-        return ResponseEntity.ok(dtoResponse);
+        List<Item> items = itemsRepository.findAll();
+
+        List<Map<String, String>> response = items
+                .stream()
+                .map(item -> Map.of(
+                        "id", item.getId().toString(),
+                        "name", item.getName(),
+                        "cost", item.getCost().toPlainString(),
+                        "amount", item.getAmount().toString(),
+                        "description", item.getDescription() == null ? "" : item.getDescription()
+                ))
+                .toList();
+
+        return ResponseEntity.ok(response);
     }
 }
