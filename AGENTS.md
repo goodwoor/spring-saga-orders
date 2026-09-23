@@ -1,7 +1,7 @@
 # AGENTS.md — saga-orders
 
 Контекст для работы над этим репозиторием (агенты и разработчики).  
-Обновлено: 21 сентября 2026.
+Обновлено: 23 сентября 2026.
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
@@ -15,17 +15,17 @@ Maven multi-module (`groupId: saga`, root `artifactId: orders`, Java 21, Spring 
 
 ```
 saga-orders/
-├── pom.xml                          # root: modules common + services
+├── pom.xml                          # root: modules common + services; devtools
 ├── compose.yaml                     # общий Kafka (localhost:9092, KRaft)
 ├── AGENTS.md                        # этот файл — контекст и карта
 ├── .cursor/rules/                   # правила Cursor (ask-before-edits и др.)
 ├── .mvn/wrapper/                    # Maven Wrapper
 │
 ├── common/                          # packaging pom
-│   ├── pom.xml                      # modules: dto, gateway
+│   ├── pom.xml                      # modules: dto, gateway; позже web (ошибки HTTP)
 │   ├── dto/                         # shared JAR (spring-boot plugin skip)
 │   │   └── src/main/java/saga/
-│   │       └── ExampleDto.java      # заглушка строк ORDER/INVENTORY/PAYMENT
+│   │       └── ExampleDto.java      # заглушка; сюда — Kafka-события, не HTTP DTO
 │   └── gateway/                     # Spring Cloud Gateway (WebMVC)
 │       ├── compose.yaml
 │       └── src/main/
@@ -34,25 +34,22 @@ saga-orders/
 │
 └── services/                        # packaging pom + общие deps сервисов
     ├── pom.xml                      # JPA, Liquibase, Kafka, Web, Resilience4j,
-    │                                # spring-cloud BOM 2025.1.3; depends on dto
-    ├── order/
-    │   ├── compose.yaml             # postgres-order :5433 / DB orders
-    │   └── src/main/
-    │       ├── java/saga/
-    │       │   ├── OrderApplication.java
-    │       │   └── OrderController.java   # GET /order/hello
-    │       └── resources/
-    │           ├── application.properties # port 8083
-    │           └── db/changelog/
-    │               ├── db.changelog-master.yaml
-    │               └── migrations/01-create-tables.sql
-    ├── inventory/
-    │   ├── compose.yaml             # postgres-inventory :5435 / DB inventory
-    │   └── src/main/…               # InventoryApplication, /inventory/hello, 8082
-    └── payment/
-        ├── compose.yaml             # postgres-payment :5434 / DB payments
-        └── src/main/…               # PaymentApplication, /payment/hello, 8084
+    │                                # MapStruct 1.6.3 + processor; spring-cloud BOM 2025.1.3
+    ├── order/                       # :8083  GET /order/hello → заказы + позиции
+    ├── inventory/                   # :8082  GET /inventory/hello → товары
+    └── payment/                     # :8084  GET /payment/hello → платежи
 ```
+
+Типичный слой сервиса (пакеты пока `saga.*`, цель — `saga.{order,inventory,payment}`):
+
+```
+*Application, *Controller, *Service, *Mapper, *Repository
+entity/          # JPA
+dto/             # HTTP records (в payment record лежит в saga, не в dto)
+repository/      # только inventory; order/payment — репозиторий в saga
+```
+
+Миграции: `01-create-tables.sql` + `02-seed-data.sql`.
 
 ### Порты и маршруты
 
@@ -78,9 +75,10 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ### Зависимости модулей (кратко)
 
-- **services/**\* наследуют от `services/pom.xml`: WebMVC, JPA, Liquibase, Kafka, Resilience4j, docker-compose, PostgreSQL driver + test starters.
-- **common/dto** — лёгкий JAR, подключён ко всем сервисам.
+- **services/**\* наследуют от `services/pom.xml`: WebMVC, JPA, Liquibase, Kafka, Resilience4j, MapStruct, docker-compose, PostgreSQL driver + test starters.
+- **common/dto** — лёгкий JAR под **события Kafka** (сейчас заглушка). HTTP response-record’ы живут в сервисе, не здесь.
 - **common/gateway** — Gateway WebMVC + Resilience4j; **без** JPA/Kafka/Liquibase.
+- **common/web** — ещё нет. Запланирован: общий `ProblemDetail` + NotFound/Conflict; кастом сервиса — свой `@ExceptionHandler`. Не класть в dto.
 
 ### Ключевые файлы «с чего открывать»
 
@@ -90,7 +88,9 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Kafka infra | `compose.yaml` |
 | Postgres per service | `services/{order,inventory,payment}/compose.yaml` |
 | Миграции | `services/*/src/main/resources/db/changelog/migrations/01-create-tables.sql` |
-| Hello API | `*Controller.java` + `ExampleDto.java` |
+| Сиды | `…/migrations/02-seed-data.sql` |
+| Hello API | `*Controller` → `*Service` → `*Mapper` → репозиторий; DTO-record |
+| Order + N+1 | `OrderRepository.findAllWithItems` (`@EntityGraph` `orderItems`) |
 | Gateway routes | `common/gateway/src/main/resources/application.properties` |
 
 ---
@@ -118,7 +118,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 **Стек:** Spring Boot 4.1.1, Java 21, Kafka, PostgreSQL (БД на сервис), Liquibase, Docker Compose, Maven multi-module. Позже: Testcontainers. Опционально: Resilience4j, CQRS read-модель.
 
 **Модули:**
-- `common/dto`, `common/gateway`
+- `common/dto`, `common/gateway` (план: `common/web` под HTTP-ошибки)
 - `services/order`, `services/inventory`, `services/payment`
 
 ---
@@ -156,7 +156,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 **Ключ сообщения = id заказа** — все события одного заказа в одной партиции, строгий порядок.
 
-**Оркестратор** — consumer по топикам событий: смотрит статус заказа, публикует следующую **команду** в Kafka (не REST для шагов саги).
+**Оркестратор** — роль **внутри Order**, не четвёртый сервис: статус саги = `orders.status`. Consumer событий → смотрит статус → публикует следующую **команду** в Kafka (не REST для шагов саги).
 
 **Read-модель** (если есть) — отдельная consumer group на те же топики, обновляет `order_view`.
 
@@ -211,11 +211,13 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ## Состояние кода (ориентир)
 
-**Есть:** multi-module Maven; Application + hello-контроллеры (`/order|/inventory|/payment/hello`); Gateway на 8081; корневой Kafka compose; Postgres compose на сервис; Liquibase master + миграции (`orders`/`order_items`, `items`/`reservations`, `payments` + индексы/UNIQUE); `ExampleDto` заглушка.
+**Есть:** multi-module Maven; Gateway 8081; Kafka compose; Postgres compose на сервис; Liquibase `01` + сиды `02`; сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`); репозитории; слой Controller → Service → MapStruct → DTO-record; hello читает сиды (Order — `findAllWithItems`).
 
-**Нет / дальше по плану:** JPA-сущности и репозитории, доменные DTO/события, Kafka producer/consumer, оркестратор Saga, Outbox, слой Service, интеграционные тесты / Testcontainers. Пакетов `entity`/`repository`/`kafka` пока нет — всё в `saga.*` на уровне hello.
+**Нет / дальше:** POST создания заказа; `common/web` (ошибки HTTP); Kafka producer/consumer; оркестратор в Order; события в `common/dto`; `ReservationRepository` (на шаге резерва); Outbox; `@Version` / `FOR UPDATE`; Testcontainers; README.
 
-Образец слоёв (Controller → Service → Repository, DTO-record, MapStruct): `E:\Dev\java\projects\task1`.
+**Пакеты:** сейчас в основном `saga` (частично `saga.entity` / `saga.dto` / `saga.repository`). Цель переименования — `saga.order` / `saga.inventory` / `saga.payment`, лучше до разрастания POST/Kafka.
+
+**Локальный reload:** IntelliJ Services по `*Application`. DevTools подхватывает **Ctrl+F9** (Build), не Ctrl+Shift+F9.
 
 ---
 
@@ -223,8 +225,8 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 Срок фазы: ~22 сен — ~2 ноя (~6 недель). Один основной фокус в день — этот проект.
 
-1. Миграции: реальные схемы (актуализировать под текущие `orders` / `items`+`reservations` / `payments` + позже `outbox`).
-2. Сущности + репозитории + простые запросы к БД.
+1. ~~Миграции: реальные схемы~~ (сделано; outbox — отдельным шагом).
+2. Сущности + репозитории + чтение — **сделано**. Добить шаг: POST заказа (`CREATED` + позиции, без Kafka) и GET по id; рядом тонкий `common/web`.
 3. Kafka (продюсер/консьюмер); ключ = order id.
 4. Happy-path: заказ → резерв → оплата → `CONFIRMED`.
 5. Компенсация: `PaymentFailed` → release → `CANCELLED`.
@@ -235,8 +237,9 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 10. README: mermaid потока + trade-off (Saga vs 2PC, оркестрация vs хореография, dual-write / Outbox).
 
 ### Чеклист TODO
-- [ ] Стартовые миграции актуальны (+ outbox позже)
-- [ ] Репозитории + работа с БД
+- [x] Стартовые миграции (+ сиды). Outbox — позже
+- [x] Репозитории + чтение сидов (hello)
+- [ ] POST заказа + GET по id; `common/web` (ProblemDetail, кастом в сервисе)
 - [ ] Конфиги Kafka + проверка сообщений
 - [ ] Сценарий создания заказа end-to-end
 - [ ] Компенсация + идемпотентность Payment

@@ -14,6 +14,7 @@
 
     <properties>
         <spring-cloud.version>2025.1.3</spring-cloud.version>
+        <org.mapstruct.version>1.6.3</org.mapstruct.version>
     </properties>
 
     <modules>
@@ -84,6 +85,11 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${org.mapstruct.version}</version>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
@@ -107,6 +113,20 @@
                     <image>
                         <name>saga/${project.artifactId}:${project.version}</name>
                     </image>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <!-- Подключаем процессор MapStruct, который генерирует код мапперов -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${org.mapstruct.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
