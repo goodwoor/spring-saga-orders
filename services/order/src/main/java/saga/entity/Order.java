@@ -25,8 +25,9 @@ public class Order {
     @Column(precision = 19, scale = 2, nullable = false)
     private BigDecimal cost;
 
-    @Column(length = 30, nullable = false)
-    private String status;
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;
 
     @Column(name = "status_changed_date", nullable = false)
     private Instant statusChangedDate;
@@ -36,7 +37,7 @@ public class Order {
 
     protected Order() {}
 
-    public Order(Long userId, List<OrderItem> orderItems, BigDecimal cost, String status, Instant statusChangedDate, Instant createdAt) {
+    public Order(Long userId, List<OrderItem> orderItems, BigDecimal cost, OrderStatus status, Instant statusChangedDate, Instant createdAt) {
         this.userId = userId;
         this.cost = cost;
         this.status = status;
@@ -71,11 +72,11 @@ public class Order {
         this.cost = cost;
     }
 
-    public String getStatus() {
+    public OrderStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(OrderStatus status) {
         this.status = status;
     }
 
