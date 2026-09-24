@@ -128,9 +128,10 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 | Сервис | Роль | Статусы / таблицы (целевые имена из дизайна) |
 |--------|------|-----------------------------------------------|
-| **Order** | создание заказа, статус саги | `CREATED` → `AWAITING_PAYMENT` → `CONFIRMED` / `CANCELLED`; `orders` + позиции |
+| **Order** | создание заказа, статус саги | `CREATED` → `AWAITING_PAYMENT` → `CONFIRMED` / `CANCELLED`; после доставки (не сага) → `COMPLETED` |
 | **Inventory** | резерв товара | остаток + резервы; резерв откатывается при отмене |
 | **Payment** | списание | транзакции по `order_id` (`PENDING` / `SUCCESS` / `FAILED`) |
+| **Delivery** (позже) | отгрузки после `CONFIRMED` | свой топик `delivery-events`; Order только читает |
 
 ### Database-per-service
 
@@ -150,10 +151,11 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ## Kafka — топики и поток
 
-Топики по типу событий:
+Топики по типу событий (пишет владелец, остальные только читают):
 - `order-events` — `OrderCreated`, `OrderCancelled`, `OrderConfirmed`
 - `inventory-events` — `InventoryReserved`, `InventoryReservationFailed`, `InventoryReleased`
 - `payment-events` — `PaymentCompleted`, `PaymentFailed`
+- `delivery-events` (позже) — «доставка завершена»; пишет Delivery, Order подписывается и ставит `COMPLETED`
 
 **Ключ сообщения = id заказа** — все события одного заказа в одной партиции, строгий порядок.
 
@@ -175,6 +177,8 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 4. Оплата успешна → `CONFIRMED`
 5. Оплата fail → компенсация: release резерва → `CANCELLED`
 6. Резерв fail → сразу `CANCELLED` (без оплаты)
+
+После саги (не шаг оркестратора): Delivery пишет в `delivery-events`, Order читает → `COMPLETED`.
 
 ---
 

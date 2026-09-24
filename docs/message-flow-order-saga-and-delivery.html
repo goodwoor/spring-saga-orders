@@ -42,6 +42,7 @@ sequenceDiagram
     participant K as Kafka
     participant D as Delivery
     participant C as Carrier
+    participant O as Order
 
     K->>D: OrderConfirmed
     D->>D: 1 allocation = 1 отгрузка NEW
@@ -53,7 +54,9 @@ sequenceDiagram
     D->>D: SHIPPED
     C->>K: чекпоинты
     D->>D: DELIVERED
-    D->>K: доставка завершена
+    D->>K: delivery-events: доставка завершена
+    K->>O: доставка завершена
+    O->>O: COMPLETED
   </pre>
 </body>
 </html>
