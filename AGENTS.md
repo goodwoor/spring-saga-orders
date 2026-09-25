@@ -1,7 +1,7 @@
 # AGENTS.md — saga-orders
 
 Контекст для работы над этим репозиторием (агенты и разработчики).  
-Обновлено: 24 сентября 2026.
+Обновлено: 25 сентября 2026.
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
@@ -16,7 +16,7 @@ Maven multi-module (`groupId: saga`, root `artifactId: orders`, Java 21, Spring 
 ```
 saga-orders/
 ├── pom.xml                          # root: modules common + services; devtools
-├── compose.yaml                     # общий Kafka (localhost:9092, KRaft)
+├── compose.yaml                     # общий Kafka (localhost:9092, KRaft; RF=1 на одном брокере)
 ├── AGENTS.md                        # этот файл — контекст и карта
 ├── .cursor/rules/                   # правила Cursor (ask-before-edits и др.)
 ├── .mvn/wrapper/                    # Maven Wrapper
@@ -25,7 +25,8 @@ saga-orders/
 │   ├── pom.xml                      # modules: dto, gateway; web отложен (после Kafka / перед README)
 │   ├── dto/                         # shared JAR (spring-boot plugin skip)
 │   │   └── src/main/java/saga/
-│   │       └── ExampleDto.java      # заглушка; сюда — Kafka-события, не HTTP DTO
+│   │       ├── OrderCreated.java    # событие Kafka (не HTTP DTO)
+│   │       └── OrderLine.java       # позиция в OrderCreated
 │   └── gateway/                     # Spring Cloud Gateway (WebMVC)
 │       ├── compose.yaml
 │       └── src/main/
@@ -35,9 +36,9 @@ saga-orders/
 └── services/                        # packaging pom + общие deps сервисов
     ├── pom.xml                      # JPA, Liquibase, Kafka, Web, Resilience4j,
     │                                # MapStruct 1.6.3 + processor; spring-cloud BOM 2025.1.3
-    ├── order/                       # :8083  POST /order, GET /order, GET /order/{id}
-    ├── inventory/                   # :8082  GET /inventory/hello → товары
-    └── payment/                     # :8084  GET /payment/hello → платежи
+    ├── order/                       # :8083  POST /order → БД + OrderCreated в order-events
+    ├── inventory/                   # :8082  GET /inventory → товары
+    └── payment/                     # :8084  GET /payment → платежи
 ```
 
 Типичный слой сервиса (пакеты пока `saga.*`, цель — `saga.{order,inventory,payment}`):
@@ -76,7 +77,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 ### Зависимости модулей (кратко)
 
 - **services/**\* наследуют от `services/pom.xml`: WebMVC, JPA, Liquibase, Kafka, Resilience4j, MapStruct, docker-compose, PostgreSQL driver + test starters.
-- **common/dto** — лёгкий JAR под **события Kafka** (сейчас заглушка). HTTP response-record’ы живут в сервисе, не здесь.
+- **common/dto** — лёгкий JAR под **события Kafka** (`OrderCreated`, `OrderLine`). HTTP response-record’ы живут в сервисе, не здесь.
 - **common/gateway** — Gateway WebMVC + Resilience4j; **без** JPA/Kafka/Liquibase.
 - **common/web** — отложен (после Kafka / перед README): общий `ProblemDetail` + NotFound/Conflict; кастом сервиса — свой `@ExceptionHandler`. Не класть в dto. Не блокер саги.
 
@@ -85,13 +86,15 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Тема | Путь |
 |------|------|
 | Root / modules | `pom.xml`, `common/pom.xml`, `services/pom.xml` |
-| Kafka infra | `compose.yaml` |
-| Postgres per service | `services/{order,inventory,payment}/compose.yaml` |
+| Kafka infra | `compose.yaml` (KRaft; `KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1`) |
+| Postgres per service | `services/{order,inventory,payment}/compose.yaml` (Kafka сюда не входит — корневой compose) |
 | Миграции | `services/*/src/main/resources/db/changelog/migrations/01-create-tables.sql` |
 | Сиды | `…/migrations/02-seed-data.sql` |
-| Hello API | Inventory/Payment: `*Controller` → `*Service` → `*Mapper` → репозиторий; DTO-record |
+| Inventory/Payment HTTP | `GET /inventory`, `GET /payment` → Service → Mapper → репозиторий; DTO-record |
 | Order HTTP | `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`; create request-DTO |
 | Order + N+1 | `findAllWithItems` / `findWithItems` (`@EntityGraph` `orderItems`) |
+| Order → Kafka | `OrderService` + `KafkaTemplate`; топик `NewTopic` в `OrderApplication`; ping-listener `saga.listener.OrderEventsListener` |
+| События | `common/dto` — `OrderCreated`, `OrderLine` |
 | Gateway routes | `common/gateway/src/main/resources/application.properties` |
 
 ---
@@ -216,11 +219,13 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ## Состояние кода (ориентир)
 
-**Есть:** multi-module Maven; Gateway 8081; Kafka compose; Postgres compose на сервис; Liquibase `01` + сиды `02`; сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`); репозитории; слой Controller → Service → MapStruct → DTO-record; Order — `POST /order` (`CREATED` + позиции, без Kafka), `GET /order`, `GET /order/{id}`; `OrderStatus`; hello у Inventory/Payment.
+**Есть:** multi-module Maven; Gateway 8081; Kafka compose (KRaft, RF=1 для `__consumer_offsets` на одном брокере); Postgres compose на сервис; Liquibase `01` + сиды `02`; сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`); репозитории; слой Controller → Service → MapStruct → DTO-record; Order — `POST /order` (`CREATED` + позиции) пишет `OrderCreated` в `order-events` (ключ = `orderId` строкой), `GET /order`, `GET /order/{id}`; `OrderStatus`; список товаров/платежей у Inventory/Payment; ping: Order сам слушает `order-events` (`group-id=order-service`) и логирует событие.
 
-**Нет / дальше:** Kafka producer/consumer; оркестратор в Order; события в `common/dto`; `ReservationRepository` (на шаге резерва); Outbox; `@Version` / `FOR UPDATE`; Testcontainers; README. `common/web` (ошибки HTTP) — отложен, не в этом шаге.
+**Нет / дальше:** оркестратор (команды резерва/оплаты); `inventory-events` / `payment-events`; консьюмеры Inventory/Payment; `ReservationRepository` (на шаге резерва); Outbox (`send` пока внутри `@Transactional`); `@Version` / `FOR UPDATE`; Testcontainers; README. `common/web` (ошибки HTTP) — отложен, не блокер саги.
 
-**Пакеты:** сейчас в основном `saga` (частично `saga.entity` / `saga.dto` / `saga.repository`). Цель переименования — `saga.order` / `saga.inventory` / `saga.payment`, лучше до разрастания Kafka.
+**Локально Kafka:** брокер только в корневом `compose.yaml`. Compose Order поднимает Postgres, не Kafka — без `docker compose -f compose.yaml up -d` клиент крутит reconnect на `localhost:9092`.
+
+**Пакеты:** сейчас в основном `saga` (частично `saga.entity` / `saga.dto` / `saga.repository` / `saga.listener`). Цель — `saga.order` / `saga.inventory` / `saga.payment`; ещё не разрослось — переименовать можно до happy-path.
 
 **Локальный reload:** IntelliJ Services по `*Application`. DevTools подхватывает **Ctrl+F9** (Build), не Ctrl+Shift+F9.
 
@@ -232,8 +237,8 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 1. ~~Миграции: реальные схемы~~ (сделано; outbox — отдельным шагом).
 2. ~~Сущности + репозитории + чтение~~. ~~POST заказа (`CREATED` + позиции) и GET по id~~ — **сделано**, без Kafka. `common/web` отложен.
-3. **Сейчас:** Kafka (продюсер/консьюмер); ключ = order id.
-4. Happy-path: заказ → резерв → оплата → `CONFIRMED`.
+3. ~~Kafka (продюсер/консьюмер); ключ = order id~~ — **сделано** (пинг `OrderCreated` в `order-events`, проверено логом listener).
+4. **Сейчас:** Happy-path: заказ → резерв → оплата → `CONFIRMED`.
 5. Компенсация: `PaymentFailed` → release → `CANCELLED`.
 6. Идемпотентность Payment.
 7. Outbox.
@@ -245,8 +250,8 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 - [x] Стартовые миграции (+ сиды). Outbox — позже
 - [x] Репозитории + чтение сидов (hello)
 - [x] POST заказа + GET по id (без Kafka; `common/web` отложен)
-- [ ] Конфиги Kafka + проверка сообщений
-- [ ] Сценарий создания заказа end-to-end
+- [x] Конфиги Kafka + проверка сообщений (`OrderCreated` → `order-events`)
+- [ ] Сценарий создания заказа end-to-end (резерв → оплата → `CONFIRMED`)
 - [ ] Компенсация + идемпотентность Payment
 - [ ] Outbox
 - [ ] `@Version` / изоляция / EXPLAIN

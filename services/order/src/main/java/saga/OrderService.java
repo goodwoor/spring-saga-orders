@@ -2,6 +2,7 @@ package saga;
 
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import saga.dto.OrderCreateRequest;
 import saga.dto.OrderResponse;
@@ -16,14 +17,17 @@ import java.util.List;
 public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderMapper mapper;
+    private final KafkaTemplate<String, OrderCreated> producer;
 
     @Autowired
     public OrderService(
             OrderRepository orderRepository,
-            OrderMapper mapper
+            OrderMapper mapper,
+            KafkaTemplate<String, OrderCreated> producer
     ) {
         this.orderRepository = orderRepository;
         this.mapper = mapper;
+        this.producer = producer;
     }
 
     public OrderResponse findOrder(Long id) {
@@ -68,6 +72,14 @@ public class OrderService {
         );
 
         Order savedOrder = orderRepository.saveAndFlush(newOrder);
+        OrderCreated orderCreatedMessage = mapper.toOrderCreated(savedOrder);
+
+        producer.send(
+                "order-events",
+                savedOrder.getId().toString(),
+                orderCreatedMessage
+        );
+
         OrderResponse response = mapper.toOrderResponse(savedOrder);
 
         return response;

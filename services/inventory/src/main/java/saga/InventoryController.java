@@ -36,8 +36,8 @@ public class InventoryController {
         this.inventoryService = inventoryService;
     }
 
-    @GetMapping("/hello")
-    public ResponseEntity<List<ItemResponse>> getHomePage()
+    @GetMapping
+    public ResponseEntity<List<ItemResponse>> getAllItems()
     {
         List<ItemResponse> response = inventoryService.findAllItems();
         return ResponseEntity.ok(response);

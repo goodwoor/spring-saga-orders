@@ -25,8 +25,8 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
-    @GetMapping("/hello")
-    public ResponseEntity<List<PaymentResponse>> getHomePage()
+    @GetMapping
+    public ResponseEntity<List<PaymentResponse>> getAllPayments()
     {
         List<PaymentResponse> response = paymentService.findAllPayments();
         return ResponseEntity.ok(response);
