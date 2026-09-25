@@ -13,7 +13,7 @@ public class OrderApplication {
     }
 
     @Bean
-    public NewTopic orderEvents() {
+    public NewTopic initOrderEventsTopic() {
         return TopicBuilder.name("order-events")
                 .partitions(3)
                 .replicas(1)

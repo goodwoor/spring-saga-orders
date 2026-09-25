@@ -1,14 +1,13 @@
-package saga;
+package saga.commands;
 
-import java.math.BigDecimal;
+import saga.events.OrderLine;
+
 import java.time.Instant;
 import java.util.List;
 
-public record OrderCreated(
+public record CreateReserveCommand(
         String orderId,
         String userId,
         List<OrderLine> orderItems,
-        BigDecimal cost,
         Instant createdAt
-)
-{}
+) {}

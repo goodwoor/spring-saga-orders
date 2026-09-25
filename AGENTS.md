@@ -93,7 +93,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Inventory/Payment HTTP | `GET /inventory`, `GET /payment` → Service → Mapper → репозиторий; DTO-record |
 | Order HTTP | `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`; create request-DTO |
 | Order + N+1 | `findAllWithItems` / `findWithItems` (`@EntityGraph` `orderItems`) |
-| Order → Kafka | `OrderService` + `KafkaTemplate`; топик `NewTopic` в `OrderApplication`; ping-listener `saga.listener.OrderEventsListener` |
+| Order → Kafka | `OrderService` + `KafkaTemplate`; топик `NewTopic` в `OrderApplication`; ping-listener `saga.OrderSaga` |
 | События | `common/dto` — `OrderCreated`, `OrderLine` |
 | Gateway routes | `common/gateway/src/main/resources/application.properties` |
 
@@ -225,7 +225,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 **Локально Kafka:** брокер только в корневом `compose.yaml`. Compose Order поднимает Postgres, не Kafka — без `docker compose -f compose.yaml up -d` клиент крутит reconnect на `localhost:9092`.
 
-**Пакеты:** сейчас в основном `saga` (частично `saga.entity` / `saga.dto` / `saga.repository` / `saga.listener`). Цель — `saga.order` / `saga.inventory` / `saga.payment`; ещё не разрослось — переименовать можно до happy-path.
+**Пакеты:** сейчас в основном `saga` (частично `saga.entity` / `saga.dto` / `saga.repository` / `saga.saga`). Цель — `saga.order` / `saga.inventory` / `saga.payment`; ещё не разрослось — переименовать можно до happy-path.
 
 **Локальный reload:** IntelliJ Services по `*Application`. DevTools подхватывает **Ctrl+F9** (Build), не Ctrl+Shift+F9.
 
