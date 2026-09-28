@@ -1,7 +1,7 @@
 # AGENTS.md — saga-orders
 
 Контекст для работы над этим репозиторием (агенты и разработчики).  
-Обновлено: 25 сентября 2026.
+Обновлено: 28 сентября 2026.
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
@@ -25,8 +25,8 @@ saga-orders/
 │   ├── pom.xml                      # modules: dto, gateway; web отложен (после Kafka / перед README)
 │   ├── dto/                         # shared JAR (spring-boot plugin skip)
 │   │   └── src/main/java/saga/
-│   │       ├── OrderCreated.java    # событие Kafka (не HTTP DTO)
-│   │       └── OrderLine.java       # позиция в OrderCreated
+│   │       ├── events/              # OrderCreated, OrderLine, ReserveCreated, PaymentCompleted, OrderConfirmed
+│   │       └── commands/            # CreateReserveCommand, ReserveOrderLine, CreatePaymentCommand, CreateDeliveryCommand (задел)
 │   └── gateway/                     # Spring Cloud Gateway (WebMVC)
 │       ├── compose.yaml
 │       └── src/main/
@@ -77,7 +77,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 ### Зависимости модулей (кратко)
 
 - **services/**\* наследуют от `services/pom.xml`: WebMVC, JPA, Liquibase, Kafka, Resilience4j, MapStruct, docker-compose, PostgreSQL driver + test starters.
-- **common/dto** — лёгкий JAR под **события Kafka** (`OrderCreated`, `OrderLine`). HTTP response-record’ы живут в сервисе, не здесь.
+- **common/dto** — лёгкий JAR под **события и команды Kafka** (`saga.events`, `saga.commands`). HTTP response-record’ы живут в сервисе, не здесь.
 - **common/gateway** — Gateway WebMVC + Resilience4j; **без** JPA/Kafka/Liquibase.
 - **common/web** — отложен (после Kafka / перед README): общий `ProblemDetail` + NotFound/Conflict; кастом сервиса — свой `@ExceptionHandler`. Не класть в dto. Не блокер саги.
 
@@ -93,8 +93,10 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Inventory/Payment HTTP | `GET /inventory`, `GET /payment` → Service → Mapper → репозиторий; DTO-record |
 | Order HTTP | `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`; create request-DTO |
 | Order + N+1 | `findAllWithItems` / `findWithItems` (`@EntityGraph` `orderItems`) |
-| Order → Kafka | `OrderService` + `KafkaTemplate`; топик `NewTopic` в `OrderApplication`; ping-listener `saga.OrderSaga` |
-| События | `common/dto` — `OrderCreated`, `OrderLine` |
+| Оркестратор | `services/order/.../OrderSaga.java` — listeners `order-events` / `inventory-events` / `payment-events`, шлёт команды |
+| Inventory резерв | `InventoryEventListener` (`inventory-commands`) → `InventoryService.reserveItems` → `ReserveCreated` |
+| Payment | `PaymentEventListener` (`payment-commands`) → `PaymentService.processPayment` (пока заглушка) |
+| События / команды | `common/dto` — `saga.events`, `saga.commands` |
 | Gateway routes | `common/gateway/src/main/resources/application.properties` |
 
 ---
@@ -154,13 +156,20 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ## Kafka — топики и поток
 
-Топики по типу событий (пишет владелец, остальные только читают):
-- `order-events` — `OrderCreated`, `OrderCancelled`, `OrderConfirmed`
-- `inventory-events` — `InventoryReserved`, `InventoryReservationFailed`, `InventoryReleased`
-- `payment-events` — `PaymentCompleted`, `PaymentFailed`
-- `delivery-events` (позже) — «доставка завершена»; пишет Delivery, Order подписывается и ставит `COMPLETED`
+Два вида топиков: `*-commands` (оркестратор → исполнитель) и `*-events` (исполнитель → оркестратор). Топик создаёт владелец через `NewTopic` в своём `*Application`.
 
-**Ключ сообщения = id заказа** — все события одного заказа в одной партиции, строгий порядок.
+| Топик | Пишет | Читает (group) | Есть сейчас | Планируется |
+|-------|-------|----------------|-------------|-------------|
+| `order-events` | Order | Order (`order-service`) | `OrderCreated`, `OrderConfirmed` (заглушка) | `OrderCancelled` |
+| `inventory-commands` | Order | Inventory (`inventory-service`) | `CreateReserveCommand` | команда release резерва |
+| `inventory-events` | Inventory | Order (`order-service`) | `ReserveCreated` | `ReserveFailed`, `ReserveReleased` |
+| `payment-commands` | Order | Payment (`payment-service`) | `CreatePaymentCommand` | — |
+| `payment-events` | Payment | Order (`order-service`) | `PaymentCompleted` (без полей) | `PaymentFailed` |
+| `delivery-events` | Delivery (позже) | Order | — | «доставка завершена» → `COMPLETED` |
+
+Классы сообщений — `common/dto`: `saga.events`, `saga.commands`.
+
+**Ключ сообщения = id заказа** — все сообщения одного заказа в одной партиции, строгий порядок.
 
 **Оркестратор** — роль **внутри Order**, не четвёртый сервис: статус саги = `orders.status`. Consumer событий → смотрит статус → публикует следующую **команду** в Kafka (не REST для шагов саги).
 
@@ -219,13 +228,28 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ## Состояние кода (ориентир)
 
-**Есть:** multi-module Maven; Gateway 8081; Kafka compose (KRaft, RF=1 для `__consumer_offsets` на одном брокере); Postgres compose на сервис; Liquibase `01` + сиды `02`; сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`); репозитории; слой Controller → Service → MapStruct → DTO-record; Order — `POST /order` (`CREATED` + позиции) пишет `OrderCreated` в `order-events` (ключ = `orderId` строкой), `GET /order`, `GET /order/{id}`; `OrderStatus`; список товаров/платежей у Inventory/Payment; ping: Order сам слушает `order-events` (`group-id=order-service`) и логирует событие.
+**Есть:** multi-module Maven; Gateway 8081; Kafka compose (KRaft, RF=1 для `__consumer_offsets` на одном брокере); Postgres compose на сервис; Liquibase `01` + сиды `02`; сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`); репозитории (включая `ReservationRepository`); слой Controller → Service → MapStruct → DTO-record; Order — `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`.
 
-**Нет / дальше:** оркестратор (команды резерва/оплаты); `inventory-events` / `payment-events`; консьюмеры Inventory/Payment; `ReservationRepository` (на шаге резерва); Outbox (`send` пока внутри `@Transactional`); `@Version` / `FOR UPDATE`; Testcontainers; README. `common/web` (ошибки HTTP) — отложен, не блокер саги.
+Поток саги (ключ = `orderId` строкой везде):
+- `OrderWriter` сохраняет заказ (`CREATED`, `@Transactional`), затем `OrderSaga` шлёт `OrderCreated` в `order-events` (после commit, без Outbox).
+- `OrderSaga` слушает своё `OrderCreated` → `CreateReserveCommand` в `inventory-commands`.
+- Inventory: списывает остаток + `Reservation` в одной транзакции → `ReserveCreated` в `inventory-events`.
+- `OrderSaga` на `ReserveCreated` → `CreatePaymentCommand` в `payment-commands`.
+- Payment: listener есть, `processPayment` / `PaymentWriter` — заглушки → пустой `PaymentCompleted` в `payment-events`.
+
+**Блокеры happy-path (шаг 4):**
+- `PaymentService` не компилируется (висит `private`).
+- Payment не сохраняет запись; `PaymentCompleted` без полей.
+- Статус заказа не двигается (`AWAITING_PAYMENT` / `CONFIRMED` никто не пишет).
+- `sendOrderConfirmedMessage` шлёт `send("order-events", "", "")`.
+- Listener'ы Order — один тип на топик; при втором типе события в `order-events` / `inventory-events` сломается. Нужен `@KafkaListener` на классе + `@KafkaHandler` на тип (как в Inventory/Payment).
+- Не блокер: Order слушает своё `OrderCreated` ради команды резерва — лишний круг, пересобрать на шаге Outbox.
+
+**Нет / дальше:** события отказа (`ReserveFailed`, `PaymentFailed`) и компенсация (release резерва); идемпотентность Payment; Outbox; `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать).
 
 **Локально Kafka:** брокер только в корневом `compose.yaml`. Compose Order поднимает Postgres, не Kafka — без `docker compose -f compose.yaml up -d` клиент крутит reconnect на `localhost:9092`.
 
-**Пакеты:** сейчас в основном `saga` (частично `saga.entity` / `saga.dto` / `saga.repository` / `saga.saga`). Цель — `saga.order` / `saga.inventory` / `saga.payment`; ещё не разрослось — переименовать можно до happy-path.
+**Пакеты:** `saga` + `saga.entity` / `saga.dto` / `saga.repository`. Переименование в `saga.order` и т.п. — осознанно пропущено (косметика, не в scope фазы).
 
 **Локальный reload:** IntelliJ Services по `*Application`. DevTools подхватывает **Ctrl+F9** (Build), не Ctrl+Shift+F9.
 
@@ -233,63 +257,16 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ## План реализации
 
-Срок фазы: ~22 сен — ~2 ноя (~6 недель). Один основной фокус в день — этот проект.
+Календарь, чеклист и график по неделям — **только** во внешнем плане (см. ссылку в начале файла). Здесь — порядок шагов и текущий шаг.
 
-1. ~~Миграции: реальные схемы~~ (сделано; outbox — отдельным шагом).
-2. ~~Сущности + репозитории + чтение~~. ~~POST заказа (`CREATED` + позиции) и GET по id~~ — **сделано**, без Kafka. `common/web` отложен.
-3. ~~Kafka (продюсер/консьюмер); ключ = order id~~ — **сделано** (пинг `OrderCreated` в `order-events`, проверено логом listener).
-4. **Сейчас:** Happy-path: заказ → резерв → оплата → `CONFIRMED`.
-5. Компенсация: `PaymentFailed` → release → `CANCELLED`.
-6. Идемпотентность Payment.
-7. Outbox.
-8. БД-глубина: `@Version`, изоляция / `FOR UPDATE`, индекс + `EXPLAIN ANALYZE`.
-9. Testcontainers: Postgres + Kafka, happy-path и компенсация.
-10. README: mermaid потока + trade-off (Saga vs 2PC, оркестрация vs хореография, dual-write / Outbox).
+Порядок: миграции → CRUD → Kafka → **happy-path** → компенсация (2 ветки) → идемпотентность Payment → Outbox → `@Version` + `EXPLAIN` → Testcontainers (2 теста) → README.
 
-### Чеклист TODO
-- [x] Стартовые миграции (+ сиды). Outbox — позже
-- [x] Репозитории + чтение сидов (hello)
-- [x] POST заказа + GET по id (без Kafka; `common/web` отложен)
-- [x] Конфиги Kafka + проверка сообщений (`OrderCreated` → `order-events`)
-- [ ] Сценарий создания заказа end-to-end (резерв → оплата → `CONFIRMED`)
-- [ ] Компенсация + идемпотентность Payment
-- [ ] Outbox
-- [ ] `@Version` / изоляция / EXPLAIN
-- [ ] Testcontainers + интеграционные тесты
-- [ ] `common/web` (ProblemDetail, NotFound/Conflict; кастом в сервисе)
-- [ ] README с архитектурой и trade-off
+**Сейчас:** шаг 4, happy-path (заказ → резерв → оплата → `CONFIRMED`). Блокеры — в «Состояние кода».
 
 ---
 
 ## Принципы работы в этом репо
 
-- Маленькие шаги с видимым прогрессом; не раздувать scope (CQRS/Resilience4j — после чеклиста выше).
+- Маленькие шаги с видимым прогрессом; не раздувать scope (CQRS/Resilience4j — после основного плана).
 - Правило 30 минут: застрял → подсмотреть / спросить → идти дальше.
 - README и тесты — часть продукта для собеса, не «потом».
-
----
-
-## Spring Boot / Maven — справочные ссылки
-
-### Reference Documentation
-- [Official Apache Maven documentation](https://maven.apache.org/guides/index.html)
-- [Spring Boot Maven Plugin Reference Guide](https://docs.spring.io/spring-boot/4.1.1/maven-plugin)
-- [Create an OCI image](https://docs.spring.io/spring-boot/4.1.1/maven-plugin/build-image.html)
-- [Spring Data JPA](https://docs.spring.io/spring-boot/4.1.1/reference/data/sql.html#data.sql.jpa-and-spring-data)
-- [Docker Compose Support](https://docs.spring.io/spring-boot/4.1.1/reference/features/dev-services.html#features.dev-services.docker-compose)
-- [Spring Web](https://docs.spring.io/spring-boot/4.1.1/reference/web/servlet.html)
-- [Resilience4J](https://docs.spring.io/spring-cloud-circuitbreaker/reference/spring-cloud-circuitbreaker-resilience4j.html)
-- [Spring for Apache Kafka](https://docs.spring.io/spring-boot/4.1.1/reference/messaging/kafka.html)
-- [Liquibase Migration](https://docs.spring.io/spring-boot/4.1.1/how-to/data-initialization.html#howto.data-initialization.migration-tool.liquibase)
-
-### Guides
-- [Accessing Data with JPA](https://spring.io/guides/gs/accessing-data-jpa/)
-- [Building a RESTful Web Service](https://spring.io/guides/gs/rest-service/)
-- [Serving Web Content with Spring MVC](https://spring.io/guides/gs/serving-web-content/)
-- [Building REST services with Spring](https://spring.io/guides/tutorials/rest/)
-
-### Docker Compose
-В проекте есть `compose.yaml` (и compose у сервисов). Образы Postgres — сверять теги с тем, что ожидаете в проде.
-
-### Maven Parent overrides
-Из parent POM наследуются в том числе `<license>` и `<developers>`; в project POM стоят пустые overrides. Если смените parent и захотите наследование — overrides нужно убрать.
