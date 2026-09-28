@@ -1,6 +1,10 @@
 package saga.commands;
 
-public record CreatePaymentCommand(
+import java.math.BigDecimal;
 
+public record CreatePaymentCommand(
+        Long orderId,
+        Long userId,
+        BigDecimal cost
 )
 {}

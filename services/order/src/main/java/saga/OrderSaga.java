@@ -34,12 +34,7 @@ public class OrderSaga {
     public void sendOrderCreated(Order savedOrder) {
         OrderCreated orderCreatedMessage = mapper.toOrderCreated(savedOrder);
         log.info("Send message: order created {}", savedOrder.getId());
-
-        producer.send(
-                "order-events",
-                savedOrder.getId().toString(),
-                orderCreatedMessage
-        );
+        producer.send("order-events", savedOrder.getId().toString(), orderCreatedMessage);
     }
 
     @KafkaListener(topics = "order-events", groupId = "order-service")
@@ -50,20 +45,20 @@ public class OrderSaga {
 
     public void sendCreateReserveCommand(OrderCreated event) {
         CreateReserveCommand createReserveCommand = mapper.toCreateReserveCommand(event);
-        producer.send("inventory-commands", event.orderId(), createReserveCommand);
+        producer.send("inventory-commands", event.orderId().toString(), createReserveCommand);
         log.info("Push command: reserve order: {}", event.orderId());
     }
 
     @KafkaListener(topics = "inventory-events", groupId = "order-service")
     public void onReserveCreated(ReserveCreated event) {
-        log.info("Get new message: reserve created: {}", "");
-        sendStartPaymentCommand(event);
+        log.info("Get new message: reserve created: {}", event.orderId());
+        sendCreatePaymentCommand(event);
     }
 
-    public void sendStartPaymentCommand(ReserveCreated event) {
+    public void sendCreatePaymentCommand(ReserveCreated event) {
         CreatePaymentCommand createPaymentCommand = mapper.toCreatePaymentCommand(event);
-        producer.send("payment-commands", "", "");
-        log.info("Push command: start payment: {}", "");
+        producer.send("payment-commands", event.orderId().toString(), createPaymentCommand);
+        log.info("Push command: create payment: {}", event.orderId());
     }
 
     @KafkaListener(topics = "payment-events", groupId = "order-service")
@@ -75,7 +70,7 @@ public class OrderSaga {
     public void sendOrderConfirmedMessage(PaymentCompleted event) {
         OrderConfirmed orderConfirmedMessage = mapper.toOrderConfirmed(event);
         producer.send("order-events", "", "");
-        log.info("Push command: reserve order: {}", "");
+        log.info("Push command: confirm order: {}", "");
     }
 
     //todo: сделать когда будет готов сервис доставки

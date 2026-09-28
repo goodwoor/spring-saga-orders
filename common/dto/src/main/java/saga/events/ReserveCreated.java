@@ -1,6 +1,10 @@
 package saga.events;
 
-public record ReserveCreated(
+import java.math.BigDecimal;
 
+public record ReserveCreated(
+        Long orderId,
+        Long userId,
+        BigDecimal cost
 )
 {}

@@ -15,16 +15,19 @@ import java.util.List;
 @Service
 public class OrderService {
     private final OrderRepository orderRepository;
+    private final OrderWriter orderWriter;
     private final OrderMapper mapper;
     private final OrderSaga saga;
 
     @Autowired
     public OrderService(
             OrderRepository orderRepository,
+            OrderWriter orderWriter,
             OrderMapper mapper,
             OrderSaga saga
     ) {
         this.orderRepository = orderRepository;
+        this.orderWriter = orderWriter;
         this.mapper = mapper;
         this.saga = saga;
     }
@@ -46,33 +49,10 @@ public class OrderService {
         return ordersDto;
     }
 
-    @Transactional
-    public OrderResponse createOrder(OrderCreateRequest createRequest) {
-        Instant now = Instant.now();
-
-        List<OrderItem> newOrderItems = createRequest.orderItems()
-                .stream()
-                .map(
-                        requestItem -> new OrderItem(
-                                requestItem.itemId(),
-                                requestItem.amount(),
-                                requestItem.cost()
-                        )
-                )
-                .toList();
-
-        Order newOrder = new Order(
-                createRequest.userId(),
-                newOrderItems,
-                createRequest.cost(),
-                OrderStatus.CREATED,
-                now,
-                now
-        );
-
-        Order savedOrder = orderRepository.saveAndFlush(newOrder);
-        OrderResponse response = mapper.toOrderResponse(savedOrder);
+    public OrderResponse processCreateOrder(OrderCreateRequest createRequest) {
+        Order savedOrder = orderWriter.createOrder(createRequest);
         saga.sendOrderCreated(savedOrder);
+        OrderResponse response = mapper.toOrderResponse(savedOrder);
 
         return response;
     }

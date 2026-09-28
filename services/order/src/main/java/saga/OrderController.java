@@ -55,7 +55,7 @@ public class OrderController {
             @RequestBody OrderCreateRequest request
     )
     {
-        OrderResponse response = orderService.createOrder(request);
+        OrderResponse response = orderService.processCreateOrder(request);
         return ResponseEntity.created(URI.create("/order/" + response.id()))
                 .body(response);
     }

@@ -3,6 +3,7 @@ package saga;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import saga.commands.CreatePaymentCommand;
 import saga.entity.Payment;
 
 import java.util.List;
@@ -32,5 +33,10 @@ public class PaymentService {
                 .toList();
 
         return paymentsDto;
+    }
+
+    //todo: продумать, как решается ситуация с изменением цен товаров с момента создания заказа до его оплаты
+    public void createPayment(CreatePaymentCommand command) {
+
     }
 }
