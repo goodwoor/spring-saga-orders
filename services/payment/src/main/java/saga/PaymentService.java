@@ -1,28 +1,29 @@
 package saga;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import saga.commands.CreatePaymentCommand;
+import saga.dto.PaymentResponse;
 import saga.entity.Payment;
+import saga.repository.PaymentRepository;
 
 import java.util.List;
 
 @Service
 public class PaymentService {
     private final PaymentRepository paymentRepository;
+    private final PaymentWriter paymentWriter;
     private final PaymentMapper mapper;
-    private final KafkaTemplate<String, Object> producer;
 
     @Autowired
     public PaymentService(
             PaymentRepository paymentRepository,
-            PaymentMapper mapper,
-            KafkaTemplate<String, Object> producer
+            PaymentWriter paymentWriter,
+            PaymentMapper mapper
     ) {
         this.paymentRepository = paymentRepository;
+        this.paymentWriter = paymentWriter;
         this.mapper = mapper;
-        this.producer = producer;
     }
 
     public List<PaymentResponse> findAllPayments() {
@@ -36,7 +37,9 @@ public class PaymentService {
     }
 
     //todo: продумать, как решается ситуация с изменением цен товаров с момента создания заказа до его оплаты
-    public void createPayment(CreatePaymentCommand command) {
+    public void processPayment(CreatePaymentCommand command) {
 
     }
+
+    private
 }

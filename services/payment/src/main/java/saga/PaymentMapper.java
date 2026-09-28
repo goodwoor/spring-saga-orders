@@ -2,6 +2,7 @@ package saga;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingConstants;
+import saga.dto.PaymentResponse;
 import saga.entity.Payment;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)

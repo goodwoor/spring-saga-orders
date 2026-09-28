@@ -55,6 +55,11 @@ public class OrderSaga {
         sendCreatePaymentCommand(event);
     }
 
+    // todo: CreatePaymentCommand — только то, что нужно Payment (orderId, userId, cost).
+    // Не прокидывать позиции/адрес «навылет» до Delivery через PaymentCompleted:
+    // событие оплаты — факт своего контекста + correlation id.
+    // Delivery собирать в оркестраторе из своего состояния (здесь сага в Order → заказ в БД).
+    // Если сага отдельным сервисом — снимок класть в saga-state на шаге ReserveCreated, не в payload оплаты.
     public void sendCreatePaymentCommand(ReserveCreated event) {
         CreatePaymentCommand createPaymentCommand = mapper.toCreatePaymentCommand(event);
         producer.send("payment-commands", event.orderId().toString(), createPaymentCommand);

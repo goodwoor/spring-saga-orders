@@ -4,18 +4,15 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import saga.commands.CreateReserveCommand;
 import saga.dto.ItemResponse;
 import saga.entity.Item;
 import saga.entity.Reservation;
 import saga.events.OrderLine;
-import saga.events.ReserveCreated;
 import saga.repository.ItemsRepository;
 import saga.repository.ReservationRepository;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

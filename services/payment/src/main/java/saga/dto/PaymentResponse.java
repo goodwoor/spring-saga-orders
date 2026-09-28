@@ -1,4 +1,4 @@
-package saga;
+package saga.dto;
 
 import java.math.BigDecimal;
 import java.time.Instant;
