@@ -1,6 +1,8 @@
 package saga;
 
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import saga.dto.OrderCreateRequest;
@@ -15,6 +17,7 @@ import java.util.List;
 @Component
 public class OrderWriter {
     private final OrderRepository orderRepository;
+    private final Logger log = LoggerFactory.getLogger(OrderWriter.class);
 
     @Autowired
     public OrderWriter(OrderRepository orderRepository) {
@@ -47,5 +50,55 @@ public class OrderWriter {
 
         Order savedOrder = orderRepository.saveAndFlush(newOrder);
         return savedOrder;
+    }
+
+    @Transactional
+    public Boolean validateAndSetAwaitingPaymentStatus(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElse(null);
+
+        if (order == null) {
+            log.warn("Not found order %s".formatted(orderId));
+            return false;
+        }
+
+        if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.CANCELLED)
+        {
+            log.warn("Order %s already have status: %s".formatted(orderId, order.getStatus()));
+            return false;
+        }
+
+        if (order.getStatus() == OrderStatus.AWAITING_PAYMENT)
+        {
+            log.info("Order %s already have status: %s".formatted(orderId, order.getStatus()));
+            return true;
+        }
+
+        order.setStatus(OrderStatus.AWAITING_PAYMENT);
+        return true;
+    }
+
+    @Transactional
+    public Boolean validateAndSetConfirmedStatus(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElse(null);
+
+        if (order == null) {
+            log.warn("Not found order %s".formatted(orderId));
+            return false;
+        }
+
+        if (order.getStatus() == OrderStatus.CONFIRMED) {
+            log.info("Order %s already have status: %s".formatted(orderId, order.getStatus()));
+            return true;
+        }
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.warn("Order %s already have status: %s".formatted(orderId, order.getStatus()));
+            return false;
+        }
+
+        order.setStatus(OrderStatus.CONFIRMED);
+        return true;
     }
 }

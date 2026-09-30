@@ -1,7 +1,7 @@
 # AGENTS.md — saga-orders
 
 Контекст для работы над этим репозиторием (агенты и разработчики).  
-Обновлено: 28 сентября 2026.
+Обновлено: 30 сентября 2026.
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
@@ -93,9 +93,9 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Inventory/Payment HTTP | `GET /inventory`, `GET /payment` → Service → Mapper → репозиторий; DTO-record |
 | Order HTTP | `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`; create request-DTO |
 | Order + N+1 | `findAllWithItems` / `findWithItems` (`@EntityGraph` `orderItems`) |
-| Оркестратор | `services/order/.../OrderSaga.java` — listeners `order-events` / `inventory-events` / `payment-events`, шлёт команды |
+| Оркестратор | `services/order/.../OrderSaga.java` — listeners `inventory-events` / `payment-events`, шлёт команды; статусы через `OrderWriter` |
 | Inventory резерв | `InventoryCommandListener` (`inventory-commands`) → `InventoryService.reserveItems` → `ReserveCreated` |
-| Payment | `PaymentCommandListener` (`payment-commands`) → `PaymentService.createPayment` (пока заглушка) |
+| Payment | `PaymentCommandListener` (`payment-commands`) → `PaymentService.createPayment` → `PaymentCompleted` |
 | События / команды | `common/dto` — `saga.events`, `saga.commands` |
 | Gateway routes | `common/gateway/src/main/resources/application.properties` |
 
@@ -160,11 +160,11 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 | Топик | Пишет | Читает (group) | Есть сейчас | Планируется |
 |-------|-------|----------------|-------------|-------------|
-| `order-events` | Order | Order (`order-service`) | `OrderCreated`, `OrderConfirmed` (заглушка) | `OrderCancelled` |
+| `order-events` | Order | никто (задел: read-модель / `OrderCancelled`) | `OrderCreated`, `OrderConfirmed` | `OrderCancelled` |
 | `inventory-commands` | Order | Inventory (`inventory-service`) | `CreateReserveCommand` | команда release резерва |
 | `inventory-events` | Inventory | Order (`order-service`) | `ReserveCreated` | `ReserveFailed`, `ReserveReleased` |
 | `payment-commands` | Order | Payment (`payment-service`) | `CreatePaymentCommand` | — |
-| `payment-events` | Payment | Order (`order-service`) | `PaymentCompleted` (без полей) | `PaymentFailed` |
+| `payment-events` | Payment | Order (`order-service`) | `PaymentCompleted` (`orderId`, `userId`, `paymentId`) | `PaymentFailed` |
 | `delivery-events` | Delivery (позже) | Order | — | «доставка завершена» → `COMPLETED` |
 
 Классы сообщений — `common/dto`: `saga.events`, `saga.commands`.
@@ -231,19 +231,16 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 **Есть:** multi-module Maven; Gateway 8081; Kafka compose (KRaft, RF=1 для `__consumer_offsets` на одном брокере); Postgres compose на сервис; Liquibase `01` + сиды `02`; сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`); репозитории (включая `ReservationRepository`); слой Controller → Service → MapStruct → DTO-record; Order — `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`.
 
 Поток саги (ключ = `orderId` строкой везде):
-- `OrderWriter` сохраняет заказ (`CREATED`, `@Transactional`), затем `OrderSaga` шлёт `OrderCreated` в `order-events` (после commit, без Outbox).
-- `OrderSaga` слушает своё `OrderCreated` → `CreateReserveCommand` в `inventory-commands`.
+- `OrderWriter.createOrder` (`CREATED`, `@Transactional`), затем `OrderSaga` шлёт `OrderCreated` в `order-events` и сразу `CreateReserveCommand` в `inventory-commands` (после commit, без Outbox; без круга через свой listener).
 - Inventory: списывает остаток + `Reservation` в одной транзакции → `ReserveCreated` в `inventory-events`.
-- `OrderSaga` на `ReserveCreated` → `CreatePaymentCommand` в `payment-commands`.
-- Payment: listener есть, `processPayment` / `PaymentWriter` — заглушки → пустой `PaymentCompleted` в `payment-events`.
+- `OrderSaga` на `ReserveCreated` → `OrderWriter.validateAndSetAwaitingPaymentStatus` (флаг) → при `true` `CreatePaymentCommand` в `payment-commands`.
+- Payment: `createPayment` пишет `SUCCESS` → `PaymentCompleted` в `payment-events`.
+- `OrderSaga` на `PaymentCompleted` → `validateAndSetConfirmedStatus` → при `true` `OrderConfirmed` в `order-events`.
 
-**Блокеры happy-path (шаг 4):**
-- `PaymentService` не компилируется (висит `private`).
-- Payment не сохраняет запись; `PaymentCompleted` без полей.
-- Статус заказа не двигается (`AWAITING_PAYMENT` / `CONFIRMED` никто не пишет).
-- `sendOrderConfirmedEvent` шлёт `send("order-events", "", "")`.
-- Listener'ы Order — один тип на топик; при втором типе события в `order-events` / `inventory-events` сломается. Несколько типов: `@KafkaListener` на классе + `@KafkaHandler` на тип (как в Inventory/Payment — маршрутизация, не защита). Защита от неизвестного/забытого типа: `@KafkaHandler(isDefault = true)`, иначе тот же poison pill.
-- Не блокер: Order слушает своё `OrderCreated` ради команды резерва — лишний круг, пересобрать на шаге Outbox.
+**Шаг 4 (happy-path) — код есть, руками не гонял:**
+- **TODO:** Postman — `POST /order` → `GET /order/{id}` статус `CONFIRMED`, запись в Payment (`GET /payment`), резерв в Inventory. Пока не проверял.
+- Listener'ы Order — один тип на топик (`ReserveCreated` / `PaymentCompleted`). Не блокер шага 4; к fail-веткам: `@KafkaListener` на классе + `@KafkaHandler` на тип. Защита от неизвестного типа: `@KafkaHandler(isDefault = true)`, иначе poison pill.
+- Идемпотентность Payment (повтор `CreatePaymentCommand`) — шаг 6, UNIQUE `order_id` в таблице уже есть.
 
 **Нет / дальше:** события отказа (`ReserveFailed`, `PaymentFailed`) и компенсация (release резерва); идемпотентность Payment; Outbox; `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать).
 
@@ -261,7 +258,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 Порядок: миграции → CRUD → Kafka → **happy-path** → компенсация (2 ветки) → идемпотентность Payment → Outbox → `@Version` + `EXPLAIN` → Testcontainers (2 теста) → README.
 
-**Сейчас:** шаг 4, happy-path (заказ → резерв → оплата → `CONFIRMED`). Блокеры — в «Состояние кода».
+**Сейчас:** шаг 4, код happy-path (заказ → резерв → оплата → `CONFIRMED`) написан. Закрытие шага — после TODO Postman в «Состояние кода». Дальше по порядку: компенсация.
 
 ---
 

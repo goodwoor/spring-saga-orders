@@ -77,6 +77,7 @@ public class Order {
     }
 
     public void setStatus(OrderStatus status) {
+        this.setStatusChangedDate(Instant.now());
         this.status = status;
     }
 

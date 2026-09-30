@@ -18,15 +18,18 @@ import saga.events.ReserveCreated;
 public class OrderSaga {
     private static final Logger log = LoggerFactory.getLogger(OrderSaga.class);
     private final KafkaTemplate<String, Object> producer;
+    private final OrderWriter orderWriter;
     private final OrderMapper mapper;
 
     @Autowired
     OrderSaga(
             KafkaTemplate<String, Object> producer,
+            OrderWriter orderWriter,
             OrderMapper mapper
     )
     {
         this.producer = producer;
+        this.orderWriter = orderWriter;
         this.mapper = mapper;
     }
 
@@ -46,7 +49,11 @@ public class OrderSaga {
     @KafkaListener(topics = "inventory-events", groupId = "order-service")
     public void onReserveCreated(ReserveCreated event) {
         log.info("Received event: reserve created: {}", event.orderId());
-        sendCreatePaymentCommand(event);
+
+        Boolean validateResult = orderWriter.validateAndSetAwaitingPaymentStatus(event.orderId());
+        if (validateResult) {
+            sendCreatePaymentCommand(event);
+        }
     }
 
     public void sendCreatePaymentCommand(ReserveCreated event) {
@@ -58,12 +65,16 @@ public class OrderSaga {
     @KafkaListener(topics = "payment-events", groupId = "order-service")
     public void onPaymentCompleted(PaymentCompleted event) {
         log.info("Received event: payment completed: {}", "");
-        sendOrderConfirmedEvent(event);
+
+        Boolean validateResult = orderWriter.validateAndSetConfirmedStatus(event.orderId());
+        if (validateResult) {
+            sendOrderConfirmedEvent(event);
+        }
     }
 
     public void sendOrderConfirmedEvent(PaymentCompleted event) {
         OrderConfirmed orderConfirmed = mapper.toOrderConfirmed(event);
-        producer.send("order-events", event.orderId().toString(), event);
+        producer.send("order-events", orderConfirmed.orderId().toString(), orderConfirmed);
         log.info("Send event: confirm order: {}", orderConfirmed);
     }
 
