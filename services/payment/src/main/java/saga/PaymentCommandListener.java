@@ -12,12 +12,12 @@ import saga.events.PaymentCompleted;
 
 @Component
 @KafkaListener(topics = "payment-commands", groupId = "payment-service")
-public class PaymentEventListener {
-    private static final Logger log = LoggerFactory.getLogger(PaymentEventListener.class);
+public class PaymentCommandListener {
+    private static final Logger log = LoggerFactory.getLogger(PaymentCommandListener.class);
     private final PaymentService service;
     private final KafkaTemplate<String, Object> producer;
 
-    public PaymentEventListener(
+    public PaymentCommandListener(
             PaymentService service,
             KafkaTemplate<String, Object> producer
     ) {
@@ -27,10 +27,14 @@ public class PaymentEventListener {
 
     @KafkaHandler
     public void onCreatePaymentCommand(CreatePaymentCommand command) {
-        log.info("Get new command: create: {}", command.orderId());
-        service.processPayment(command);
+        log.info("Received command: create payment: {}", command.orderId());
+        Payment newPayment = service.createPayment(command);
 
-        PaymentCompleted event = new PaymentCompleted();
+        PaymentCompleted event = new PaymentCompleted(
+                command.orderId(),
+                command.userId(),
+                newPayment.getId()
+        );
 
         producer.send("payment-events", command.orderId().toString(), event);
     }

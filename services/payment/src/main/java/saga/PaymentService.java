@@ -1,28 +1,28 @@
 package saga;
 
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import saga.commands.CreatePaymentCommand;
 import saga.dto.PaymentResponse;
 import saga.entity.Payment;
+import saga.entity.PaymentStatus;
 import saga.repository.PaymentRepository;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
 public class PaymentService {
     private final PaymentRepository paymentRepository;
-    private final PaymentWriter paymentWriter;
     private final PaymentMapper mapper;
 
     @Autowired
     public PaymentService(
             PaymentRepository paymentRepository,
-            PaymentWriter paymentWriter,
             PaymentMapper mapper
     ) {
         this.paymentRepository = paymentRepository;
-        this.paymentWriter = paymentWriter;
         this.mapper = mapper;
     }
 
@@ -36,10 +36,20 @@ public class PaymentService {
         return paymentsDto;
     }
 
-    //todo: продумать, как решается ситуация с изменением цен товаров с момента создания заказа до его оплаты
-    public void processPayment(CreatePaymentCommand command) {
+    @Transactional
+    public Payment createPayment(CreatePaymentCommand command) {
+        Instant now = Instant.now();
+        Payment newPayment = new Payment(
+                command.userId(),
+                command.orderId(),
+                PaymentStatus.SUCCESS,
+                now,
+                now,
+                command.cost()
+        );
 
+        Payment savedPayment = paymentRepository.saveAndFlush(newPayment);
+
+        return savedPayment;
     }
-
-    private
 }

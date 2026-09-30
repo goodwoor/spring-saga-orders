@@ -27,7 +27,7 @@ public class Payment {
     private Long orderId;
 
     @Column(length = 30, nullable = false)
-    private String status;
+    private PaymentStatus status;
 
     @Column(name = "status_changed_date", nullable = false)
     private Instant statusChangedDate;
@@ -40,7 +40,7 @@ public class Payment {
 
     protected Payment() {}
 
-    public Payment(Long userId, Long orderId, String status, Instant statusChangedDate, Instant createdAt, BigDecimal cost) {
+    public Payment(Long userId, Long orderId, PaymentStatus status, Instant statusChangedDate, Instant createdAt, BigDecimal cost) {
         this.userId = userId;
         this.orderId = orderId;
         this.status = status;
@@ -69,11 +69,11 @@ public class Payment {
         this.orderId = orderId;
     }
 
-    public String getStatus() {
+    public PaymentStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(PaymentStatus status) {
         this.status = status;
     }
 

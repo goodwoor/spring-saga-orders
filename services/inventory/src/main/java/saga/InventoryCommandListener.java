@@ -12,13 +12,13 @@ import saga.events.ReserveCreated;
 
 @Component
 @KafkaListener(topics = "inventory-commands", groupId = "inventory-service")
-public class InventoryEventListener {
-    private static final Logger log = LoggerFactory.getLogger(InventoryEventListener.class);
+public class InventoryCommandListener {
+    private static final Logger log = LoggerFactory.getLogger(InventoryCommandListener.class);
     private final InventoryService service;
     private final KafkaTemplate<String, Object> producer;
 
     @Autowired
-    InventoryEventListener(
+    InventoryCommandListener(
             InventoryService service,
             KafkaTemplate<String, Object> producer
     ) {
@@ -28,7 +28,7 @@ public class InventoryEventListener {
 
     @KafkaHandler
     public void onReserveCommand(CreateReserveCommand command) {
-        log.info("Get new command: reserve: {}", command.orderId());
+        log.info("Received command: reserve: {}", command.orderId());
         service.reserveItems(command);
 
         ReserveCreated reserveCreatedEvent = new ReserveCreated(

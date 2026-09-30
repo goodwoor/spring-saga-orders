@@ -48,7 +48,7 @@ public class OrderService {
 
     public OrderResponse processCreateOrder(OrderCreateRequest createRequest) {
         Order savedOrder = orderWriter.createOrder(createRequest);
-        saga.sendOrderCreated(savedOrder);
+        saga.sendOrderCreatedEvent(savedOrder);
         OrderResponse response = mapper.toOrderResponse(savedOrder);
 
         return response;

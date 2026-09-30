@@ -94,8 +94,8 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Order HTTP | `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`; create request-DTO |
 | Order + N+1 | `findAllWithItems` / `findWithItems` (`@EntityGraph` `orderItems`) |
 | Оркестратор | `services/order/.../OrderSaga.java` — listeners `order-events` / `inventory-events` / `payment-events`, шлёт команды |
-| Inventory резерв | `InventoryEventListener` (`inventory-commands`) → `InventoryService.reserveItems` → `ReserveCreated` |
-| Payment | `PaymentEventListener` (`payment-commands`) → `PaymentService.processPayment` (пока заглушка) |
+| Inventory резерв | `InventoryCommandListener` (`inventory-commands`) → `InventoryService.reserveItems` → `ReserveCreated` |
+| Payment | `PaymentCommandListener` (`payment-commands`) → `PaymentService.createPayment` (пока заглушка) |
 | События / команды | `common/dto` — `saga.events`, `saga.commands` |
 | Gateway routes | `common/gateway/src/main/resources/application.properties` |
 
@@ -241,8 +241,8 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 - `PaymentService` не компилируется (висит `private`).
 - Payment не сохраняет запись; `PaymentCompleted` без полей.
 - Статус заказа не двигается (`AWAITING_PAYMENT` / `CONFIRMED` никто не пишет).
-- `sendOrderConfirmedMessage` шлёт `send("order-events", "", "")`.
-- Listener'ы Order — один тип на топик; при втором типе события в `order-events` / `inventory-events` сломается. Нужен `@KafkaListener` на классе + `@KafkaHandler` на тип (как в Inventory/Payment).
+- `sendOrderConfirmedEvent` шлёт `send("order-events", "", "")`.
+- Listener'ы Order — один тип на топик; при втором типе события в `order-events` / `inventory-events` сломается. Несколько типов: `@KafkaListener` на классе + `@KafkaHandler` на тип (как в Inventory/Payment — маршрутизация, не защита). Защита от неизвестного/забытого типа: `@KafkaHandler(isDefault = true)`, иначе тот же poison pill.
 - Не блокер: Order слушает своё `OrderCreated` ради команды резерва — лишний круг, пересобрать на шаге Outbox.
 
 **Нет / дальше:** события отказа (`ReserveFailed`, `PaymentFailed`) и компенсация (release резерва); идемпотентность Payment; Outbox; `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать).
