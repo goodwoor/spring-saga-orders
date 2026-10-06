@@ -3,20 +3,22 @@ package saga;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingConstants;
-import saga.commands.CreateDeliveryCommand;
 import saga.commands.CreatePaymentCommand;
 import saga.commands.CreateReserveCommand;
+import saga.commands.RevertReserveCommand;
 import saga.dto.OrderItemResponse;
 import saga.dto.OrderResponse;
 import saga.entity.Order;
 import saga.entity.OrderItem;
-import saga.events.*;
+import saga.events.inventory.ReserveReverted;
 import saga.events.order.OrderCancelled;
 import saga.events.order.OrderConfirmed;
 import saga.events.order.OrderCreated;
 import saga.events.order.OrderLine;
-import saga.events.reserve.ReserveCreated;
-import saga.events.reserve.ReserveFailed;
+import saga.events.payment.PaymentCompleted;
+import saga.events.payment.PaymentFailed;
+import saga.events.inventory.ReserveCreated;
+import saga.events.inventory.ReserveFailed;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface OrderMapper {
@@ -31,6 +33,6 @@ public interface OrderMapper {
     CreatePaymentCommand toCreatePaymentCommand(ReserveCreated reserveCreatedEvent);
     OrderConfirmed toOrderConfirmed(PaymentCompleted paymentCompletedEvent);
     OrderCancelled toOrderCancelled(ReserveFailed reserveFailed);
-    // TODO шаг 5: toOrderCancelled(Long orderId) или из ReserveReleased
-    CreateDeliveryCommand toCreateDeliveryCommand(PaymentCompleted paymentCompletedEvent);
+    OrderCancelled toOrderCancelled(ReserveReverted reserveReverted);
+    RevertReserveCommand toRevertReservationCommand(PaymentFailed paymentFailedEvent);
 }

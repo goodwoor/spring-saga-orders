@@ -117,7 +117,6 @@ public class OrderWriter {
             return false;
         }
 
-        // TODO шаг 5: отменять только CREATED / AWAITING_PAYMENT; CONFIRMED — warn + false
         order.setStatus(OrderStatus.CANCELLED);
         return true;
     }

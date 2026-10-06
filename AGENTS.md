@@ -1,7 +1,7 @@
 # AGENTS.md — saga-orders
 
 Контекст для работы над этим репозиторием (агенты и разработчики).  
-Обновлено: 30 сентября 2026.
+Обновлено: 6 октября 2026.
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
@@ -25,8 +25,8 @@ saga-orders/
 │   ├── pom.xml                      # modules: dto, gateway; web отложен (после Kafka / перед README)
 │   ├── dto/                         # shared JAR (spring-boot plugin skip)
 │   │   └── src/main/java/saga/
-│   │       ├── events/              # OrderCreated, OrderLine, ReserveCreated, PaymentCompleted, OrderConfirmed
-│   │       └── commands/            # CreateReserveCommand, ReserveOrderLine, CreatePaymentCommand, CreateDeliveryCommand (задел)
+│   │       ├── events/              # order/, reserve/, PaymentCompleted
+│   │       └── commands/            # CreateReserveCommand, CreatePaymentCommand, CreateDeliveryCommand (задел)
 │   └── gateway/                     # Spring Cloud Gateway (WebMVC)
 │       ├── compose.yaml
 │       └── src/main/
@@ -93,10 +93,11 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Inventory/Payment HTTP | `GET /inventory`, `GET /payment` → Service → Mapper → репозиторий; DTO-record |
 | Order HTTP | `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`; create request-DTO |
 | Order + N+1 | `findAllWithItems` / `findWithItems` (`@EntityGraph` `orderItems`) |
-| Оркестратор | `services/order/.../OrderSaga.java` — listeners `inventory-events` / `payment-events`, шлёт команды; статусы через `OrderWriter` |
-| Inventory резерв | `InventoryCommandListener` (`inventory-commands`) → `InventoryService.reserveItems` → `ReserveCreated` |
+| Оркестратор | `services/order/.../OrderSaga.java` — `@KafkaListener` на `inventory-events` + `payment-events`, `@KafkaHandler` на тип; статусы через `OrderWriter` |
+| Inventory резерв | `InventoryCommandListener` (`inventory-commands`) → `reserveItems` → `ReserveCreated` / `ReserveFailed` |
 | Payment | `PaymentCommandListener` (`payment-commands`) → `PaymentService.createPayment` → `PaymentCompleted` |
-| События / команды | `common/dto` — `saga.events`, `saga.commands` |
+| События / команды | `common/dto` — `saga.events` / `saga.events.order` / `saga.events.inventory`, `saga.commands` |
+| Postman | `postman/collections/Saga-orders/` |
 | Gateway routes | `common/gateway/src/main/resources/application.properties` |
 
 ---
@@ -160,9 +161,9 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 | Топик | Пишет | Читает (group) | Есть сейчас | Планируется |
 |-------|-------|----------------|-------------|-------------|
-| `order-events` | Order | никто (задел: read-модель / `OrderCancelled`) | `OrderCreated`, `OrderConfirmed` | `OrderCancelled` |
+| `order-events` | Order | никто (задел: read-модель) | `OrderCreated`, `OrderConfirmed`, `OrderCancelled` | — |
 | `inventory-commands` | Order | Inventory (`inventory-service`) | `CreateReserveCommand` | команда release резерва |
-| `inventory-events` | Inventory | Order (`order-service`) | `ReserveCreated` | `ReserveFailed`, `ReserveReleased` |
+| `inventory-events` | Inventory | Order (`order-service`) | `ReserveCreated`, `ReserveFailed` | `ReserveReleased` |
 | `payment-commands` | Order | Payment (`payment-service`) | `CreatePaymentCommand` | — |
 | `payment-events` | Payment | Order (`order-service`) | `PaymentCompleted` (`orderId`, `userId`, `paymentId`) | `PaymentFailed` |
 | `delivery-events` | Delivery (позже) | Order | — | «доставка завершена» → `COMPLETED` |
@@ -232,17 +233,23 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 Поток саги (ключ = `orderId` строкой везде):
 - `OrderWriter.createOrder` (`CREATED`, `@Transactional`), затем `OrderSaga` шлёт `OrderCreated` в `order-events` и сразу `CreateReserveCommand` в `inventory-commands` (после commit, без Outbox; без круга через свой listener).
-- Inventory: списывает остаток + `Reservation` в одной транзакции → `ReserveCreated` в `inventory-events`.
-- `OrderSaga` на `ReserveCreated` → `OrderWriter.validateAndSetAwaitingPaymentStatus` (флаг) → при `true` `CreatePaymentCommand` в `payment-commands`.
+- Inventory: списывает остаток + `Reservation` в одной транзакции → `ReserveCreated`; нехватка / нет товара → rollback + `ReserveFailed` (`NOT_ENOUGH_AMOUNT` / `ITEMS_NOT_FOUND`).
+- `OrderSaga` на `ReserveCreated` → `validateAndSetAwaitingPaymentStatus` → при `true` `CreatePaymentCommand`.
+- `OrderSaga` на `ReserveFailed` → `validateAndSetCancelledStatus` → `OrderCancelled` в `order-events` (оплату не шлёт).
 - Payment: `createPayment` пишет `SUCCESS` → `PaymentCompleted` в `payment-events`.
 - `OrderSaga` на `PaymentCompleted` → `validateAndSetConfirmedStatus` → при `true` `OrderConfirmed` в `order-events`.
 
-**Шаг 4 (happy-path) — код есть, руками не гонял:**
-- **TODO:** Postman — `POST /order` → `GET /order/{id}` статус `CONFIRMED`, запись в Payment (`GET /payment`), резерв в Inventory. Пока не проверял.
-- Listener'ы Order — один тип на топик (`ReserveCreated` / `PaymentCompleted`). Не блокер шага 4; к fail-веткам: `@KafkaListener` на классе + `@KafkaHandler` на тип. Защита от неизвестного типа: `@KafkaHandler(isDefault = true)`, иначе poison pill.
-- Идемпотентность Payment (повтор `CreatePaymentCommand`) — шаг 6, UNIQUE `order_id` в таблице уже есть.
+`OrderSaga`: `@KafkaListener(topics = {"inventory-events", "payment-events"})` + `@KafkaHandler` на тип. Trusted packages: `saga.commands,saga.events,saga.events.inventory,saga.events.order`.
 
-**Нет / дальше:** события отказа (`ReserveFailed`, `PaymentFailed`) и компенсация (release резерва); идемпотентность Payment; Outbox; `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать).
+**Шаг 4 (happy-path) — закрыт:** Postman `POST /order` → `GET /order/{id}` = `CONFIRMED`, Payment и Inventory ок.
+
+**Шаг 5 компенсация:**
+- **Готово:** резерв fail → `CANCELLED` (Postman: not enough / item not found).
+- **Дальше:** оплата fail → release резерва → `CANCELLED`. TODO в Payment/Inventory/OrderSaga. Postman `Order create payment fail` (`userId: 9999`) уже есть, без кода пока уйдёт в `CONFIRMED`.
+- `@KafkaHandler(isDefault = true)` — ещё нет.
+- Идемпотентность Payment — шаг 6, UNIQUE `order_id` уже есть.
+
+**Нет / дальше:** `PaymentFailed`, release резерва, `ReserveReleased`; идемпотентность Payment; Outbox; `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать).
 
 **Локально Kafka:** брокер только в корневом `compose.yaml`. Compose Order поднимает Postgres, не Kafka — без `docker compose -f compose.yaml up -d` клиент крутит reconnect на `localhost:9092`.
 
@@ -258,7 +265,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 Порядок: миграции → CRUD → Kafka → **happy-path** → компенсация (2 ветки) → идемпотентность Payment → Outbox → `@Version` + `EXPLAIN` → Testcontainers (2 теста) → README.
 
-**Сейчас:** шаг 4, код happy-path (заказ → резерв → оплата → `CONFIRMED`) написан. Закрытие шага — после TODO Postman в «Состояние кода». Дальше по порядку: компенсация.
+**Сейчас:** шаг 5, ветка резерв fail закрыта (`ReserveFailed` → `CANCELLED`). Осталась ветка: оплата fail → release → `CANCELLED`.
 
 ---
 

@@ -27,6 +27,7 @@ public class Payment {
     private Long orderId;
 
     @Column(length = 30, nullable = false)
+    @Enumerated(EnumType.STRING)
     private PaymentStatus status;
 
     @Column(name = "status_changed_date", nullable = false)

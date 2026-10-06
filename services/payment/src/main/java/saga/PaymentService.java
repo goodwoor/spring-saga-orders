@@ -1,6 +1,8 @@
 package saga;
 
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import saga.commands.CreatePaymentCommand;
@@ -14,6 +16,7 @@ import java.util.List;
 
 @Service
 public class PaymentService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
     private final PaymentRepository paymentRepository;
     private final PaymentMapper mapper;
 
@@ -37,14 +40,29 @@ public class PaymentService {
     }
 
     @Transactional
-    public Payment createPayment(CreatePaymentCommand command) {
+    public Payment createPayment(CreatePaymentCommand command)
+    {
         Instant now = Instant.now();
-        // TODO шаг 5: константа DECLINED_USER_ID = 9999L → статус FAILED
-        // TODO шаг 5: если платёж по order_id уже есть — вернуть его, не вставлять
+        Payment oldPayment = paymentRepository.findByOrderId(command.orderId()).orElse(null);
+
+        if (oldPayment != null) {
+            log.info(
+                    "Payment already exists, payment id: %s, order id: %s".formatted(
+                            oldPayment.getId(),
+                            command.orderId()
+                    )
+            );
+            return oldPayment;
+        }
+
+        PaymentStatus status = command.userId() == 9999L
+                ? PaymentStatus.FAILED
+                : PaymentStatus.SUCCESS;
+
         Payment newPayment = new Payment(
                 command.userId(),
                 command.orderId(),
-                PaymentStatus.SUCCESS,
+                status,
                 now,
                 now,
                 command.cost()

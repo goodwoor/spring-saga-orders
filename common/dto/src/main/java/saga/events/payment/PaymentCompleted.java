@@ -1,6 +1,5 @@
-package saga.events;
+package saga.events.payment;
 
-// TODO шаг 5: рядом PaymentFailed(orderId, userId)
 public record PaymentCompleted(
         Long orderId,
         Long userId,

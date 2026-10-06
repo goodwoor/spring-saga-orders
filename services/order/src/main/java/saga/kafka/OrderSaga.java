@@ -1,4 +1,4 @@
-package saga;
+package saga.kafka;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -7,15 +7,20 @@ import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
+import saga.OrderMapper;
+import saga.OrderWriter;
 import saga.commands.CreatePaymentCommand;
 import saga.commands.CreateReserveCommand;
+import saga.commands.RevertReserveCommand;
 import saga.entity.Order;
-import saga.events.*;
+import saga.events.inventory.ReserveReverted;
 import saga.events.order.OrderCancelled;
 import saga.events.order.OrderConfirmed;
 import saga.events.order.OrderCreated;
-import saga.events.reserve.ReserveCreated;
-import saga.events.reserve.ReserveFailed;
+import saga.events.payment.PaymentCompleted;
+import saga.events.payment.PaymentFailed;
+import saga.events.inventory.ReserveCreated;
+import saga.events.inventory.ReserveFailed;
 
 @Component
 @KafkaListener(topics = {"inventory-events", "payment-events"}, groupId = "order-service")
@@ -60,27 +65,6 @@ public class OrderSaga {
         }
     }
 
-    @KafkaHandler
-    public void onReserveFailed(ReserveFailed event) {
-        log.info("Received event: reserve failed: {}", event);
-
-        Boolean validateResult = orderWriter.validateAndSetCancelledStatus(event.orderId());
-        if (validateResult) {
-            sendOrderCancelledEvent(event);
-        }
-    }
-
-    public void sendOrderCancelledEvent(ReserveFailed event) {
-        OrderCancelled orderCancelled = mapper.toOrderCancelled(event);
-        producer.send("order-events", orderCancelled.orderId().toString(), orderCancelled);
-        log.info("Send event: cancel order: {}", orderCancelled);
-    }
-
-    // TODO шаг 5: onPaymentFailed → ReleaseReserveCommand, статус не менять (ещё AWAITING_PAYMENT)
-    // TODO шаг 5: onReserveReleased → validateAndSetCancelledStatus → sendOrderCancelledEvent
-    // TODO шаг 5: sendOrderCancelledEvent(Long orderId), не только из ReserveFailed
-    // TODO шаг 5: @KafkaHandler(isDefault = true) — лог + ack
-
     public void sendCreatePaymentCommand(ReserveCreated event) {
         CreatePaymentCommand createPaymentCommand = mapper.toCreatePaymentCommand(event);
         producer.send("payment-commands", event.orderId().toString(), createPaymentCommand);
@@ -88,8 +72,24 @@ public class OrderSaga {
     }
 
     @KafkaHandler
+    public void onReserveFailed(ReserveFailed event) {
+        log.info("Received event: reserve failed: {}", event);
+
+        Boolean validateResult = orderWriter.validateAndSetCancelledStatus(event.orderId());
+        if (validateResult) {
+            OrderCancelled orderCancelled = mapper.toOrderCancelled(event);
+            sendOrderCancelledEvent(orderCancelled);
+        }
+    }
+
+    public void sendOrderCancelledEvent(OrderCancelled orderCancelled) {
+        producer.send("order-events", orderCancelled.orderId().toString(), orderCancelled);
+        log.info("Send event: cancel order: {}", orderCancelled);
+    }
+
+    @KafkaHandler
     public void onPaymentCompleted(PaymentCompleted event) {
-        log.info("Received event: payment completed: {}", "");
+        log.info("Received event: payment completed: {}", event);
 
         Boolean validateResult = orderWriter.validateAndSetConfirmedStatus(event.orderId());
         if (validateResult) {
@@ -103,10 +103,30 @@ public class OrderSaga {
         log.info("Send event: confirm order: {}", orderConfirmed);
     }
 
-    //todo: сделать когда будет готов сервис доставки
-    /*public void sendCreateDeliveryCommand(PaymentCompleted event) {
-        CreateDeliveryCommand createDeliveryCommand = mapper.toCreateDeliveryCommand(event);
-        producer.send("inventory-commands", "", "");
-        log.info("Send command: reserve order: {}", "");
-    }*/
+    @KafkaHandler
+    public void onPaymentFailed(PaymentFailed event) {
+        log.info("Received event: payment failed: {}", event);
+        RevertReserveCommand revertReserveCommand = mapper.toRevertReservationCommand(event);
+        sendRevertReservationCommand(revertReserveCommand);
+    }
+
+    public void sendRevertReservationCommand(RevertReserveCommand event) {
+        producer.send("inventory-commands", event.orderId().toString(), event);
+        log.info("Send command: revert reservation: {}", event.orderId());
+    }
+
+    @KafkaHandler
+    public void onReserveReverted(ReserveReverted event) {
+        log.info("Received event: reserve reverted: {}", event);
+        Boolean validateResult = orderWriter.validateAndSetCancelledStatus(event.orderId());
+        if (validateResult) {
+            OrderCancelled orderCancelled = mapper.toOrderCancelled(event);
+            sendOrderCancelledEvent(orderCancelled);
+        }
+    }
+
+    @KafkaHandler(isDefault = true)
+    public void onUnknown(Object unknownEvent) {
+        log.warn("Unknown Kafka payload, skipping: {}", unknownEvent.getClass().getName());
+    }
 }

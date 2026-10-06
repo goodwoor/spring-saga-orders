@@ -9,11 +9,6 @@ import saga.dto.PaymentResponse;
 
 import java.util.List;
 
-/**
- * TODO: ошибки HTTP — @RestControllerAdvice + ProblemDetail.
- * Сервис кидает доменные unchecked (not found / conflict). Не ловить Exception → 500 с message.
- * Advice только HTTP, Kafka-consumer не покрывает.
- */
 @RequestMapping("/payment")
 @RestController
 public class PaymentController {

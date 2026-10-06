@@ -106,6 +106,16 @@ public class InventoryService {
         reservationRepository.saveAll(reservations);
     }
 
-    // TODO шаг 5: releaseItems(orderId) — вернуть reserved_amount в Item.amount, удалить Reservation
-    // нет строк по orderId → ничего не делать (повтор команды ок)
+    @Transactional
+    public void revertReserve(Long orderId) {
+        List<Reservation> allReservations = reservationRepository.findAllByOrderId(orderId);
+
+        for (Reservation reservation: allReservations) {
+            Item reservationItem = reservation.getItem();
+            Integer newAmount = reservationItem.getAmount() + reservation.getReservedAmount();
+            reservationItem.setAmount(newAmount);
+        }
+
+        reservationRepository.deleteAll(allReservations);
+    }
 }

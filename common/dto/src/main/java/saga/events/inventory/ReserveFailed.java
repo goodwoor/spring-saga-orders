@@ -1,6 +1,5 @@
-package saga.events.reserve;
+package saga.events.inventory;
 
-// TODO шаг 5: рядом ReserveReleased(orderId)
 public record ReserveFailed(
         Long orderId,
         ReserveFailedReason reason
