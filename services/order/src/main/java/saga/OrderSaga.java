@@ -3,18 +3,22 @@ package saga;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import saga.commands.CreatePaymentCommand;
 import saga.commands.CreateReserveCommand;
 import saga.entity.Order;
-import saga.events.OrderConfirmed;
-import saga.events.OrderCreated;
-import saga.events.PaymentCompleted;
-import saga.events.ReserveCreated;
+import saga.events.*;
+import saga.events.order.OrderCancelled;
+import saga.events.order.OrderConfirmed;
+import saga.events.order.OrderCreated;
+import saga.events.reserve.ReserveCreated;
+import saga.events.reserve.ReserveFailed;
 
 @Component
+@KafkaListener(topics = {"inventory-events", "payment-events"}, groupId = "order-service")
 public class OrderSaga {
     private static final Logger log = LoggerFactory.getLogger(OrderSaga.class);
     private final KafkaTemplate<String, Object> producer;
@@ -46,7 +50,7 @@ public class OrderSaga {
         log.info("Send command: reserve order: {}", event.orderId());
     }
 
-    @KafkaListener(topics = "inventory-events", groupId = "order-service")
+    @KafkaHandler
     public void onReserveCreated(ReserveCreated event) {
         log.info("Received event: reserve created: {}", event.orderId());
 
@@ -56,13 +60,34 @@ public class OrderSaga {
         }
     }
 
+    @KafkaHandler
+    public void onReserveFailed(ReserveFailed event) {
+        log.info("Received event: reserve failed: {}", event);
+
+        Boolean validateResult = orderWriter.validateAndSetCancelledStatus(event.orderId());
+        if (validateResult) {
+            sendOrderCancelledEvent(event);
+        }
+    }
+
+    public void sendOrderCancelledEvent(ReserveFailed event) {
+        OrderCancelled orderCancelled = mapper.toOrderCancelled(event);
+        producer.send("order-events", orderCancelled.orderId().toString(), orderCancelled);
+        log.info("Send event: cancel order: {}", orderCancelled);
+    }
+
+    // TODO шаг 5: onPaymentFailed → ReleaseReserveCommand, статус не менять (ещё AWAITING_PAYMENT)
+    // TODO шаг 5: onReserveReleased → validateAndSetCancelledStatus → sendOrderCancelledEvent
+    // TODO шаг 5: sendOrderCancelledEvent(Long orderId), не только из ReserveFailed
+    // TODO шаг 5: @KafkaHandler(isDefault = true) — лог + ack
+
     public void sendCreatePaymentCommand(ReserveCreated event) {
         CreatePaymentCommand createPaymentCommand = mapper.toCreatePaymentCommand(event);
         producer.send("payment-commands", event.orderId().toString(), createPaymentCommand);
         log.info("Send command: create payment: {}", event.orderId());
     }
 
-    @KafkaListener(topics = "payment-events", groupId = "order-service")
+    @KafkaHandler
     public void onPaymentCompleted(PaymentCompleted event) {
         log.info("Received event: payment completed: {}", "");
 

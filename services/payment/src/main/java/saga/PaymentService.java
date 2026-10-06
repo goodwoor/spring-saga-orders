@@ -39,6 +39,8 @@ public class PaymentService {
     @Transactional
     public Payment createPayment(CreatePaymentCommand command) {
         Instant now = Instant.now();
+        // TODO шаг 5: константа DECLINED_USER_ID = 9999L → статус FAILED
+        // TODO шаг 5: если платёж по order_id уже есть — вернуть его, не вставлять
         Payment newPayment = new Payment(
                 command.userId(),
                 command.orderId(),

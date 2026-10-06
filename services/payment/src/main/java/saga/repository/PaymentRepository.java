@@ -6,5 +6,5 @@ import saga.entity.Payment;
 
 @Repository
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
-
+    // TODO шаг 5: Optional<Payment> findByOrderId(Long orderId);
 }

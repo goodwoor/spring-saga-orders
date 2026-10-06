@@ -1,0 +1,21 @@
+$kind: http-request
+name: Order create reserve fail - item not found
+url: http://localhost:8081/order
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "userId": 1013,
+      "cost": 100.00,
+      "orderItems": [
+        {
+          "itemId": 99999,
+          "amount": 1,
+          "cost": 100.00
+        }
+      ]
+    }
+order: 7000

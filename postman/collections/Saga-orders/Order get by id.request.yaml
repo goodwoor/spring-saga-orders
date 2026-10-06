@@ -1,0 +1,7 @@
+$kind: http-request
+name: Order get by id
+url: http://localhost:8081/order/18
+method: GET
+settings: {}
+order: 2000
+

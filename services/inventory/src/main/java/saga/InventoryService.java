@@ -9,7 +9,9 @@ import saga.commands.CreateReserveCommand;
 import saga.dto.ItemResponse;
 import saga.entity.Item;
 import saga.entity.Reservation;
-import saga.events.OrderLine;
+import saga.kafka.ItemsNotFoundException;
+import saga.kafka.NotEnoughAmountException;
+import saga.events.order.OrderLine;
 import saga.repository.ItemsRepository;
 import saga.repository.ReservationRepository;
 
@@ -47,7 +49,9 @@ public class InventoryService {
     }
 
     @Transactional
-    public void reserveItems(CreateReserveCommand command) {
+    public void reserveItems(CreateReserveCommand command)
+            throws ItemsNotFoundException, NotEnoughAmountException
+    {
         List<Long> itemsIds = command.orderItems().stream()
                 .map(OrderLine::itemId)
                 .toList();
@@ -63,7 +67,7 @@ public class InventoryService {
         List<Item> itemsToReserve = itemsRepository.findAllById(itemsIds);
 
         if (itemsToReserve.size() != command.orderItems().size()) {
-            throw new IllegalStateException(
+            throw new ItemsNotFoundException(
                     "Items not found for order %s: requested %s, found %s".formatted(
                             command.orderId(),
                             command.orderItems().size(),
@@ -79,7 +83,7 @@ public class InventoryService {
             Integer newAmount = item.getAmount() - reservedAmount;
 
             if (newAmount < 0) {
-                throw new IllegalStateException(
+                throw new NotEnoughAmountException(
                         "Not enough amount: item id: %s, amount: %s, reserved amount: %s".formatted(
                                 item.getId(),
                                 item.getAmount(),
@@ -101,4 +105,7 @@ public class InventoryService {
 
         reservationRepository.saveAll(reservations);
     }
+
+    // TODO шаг 5: releaseItems(orderId) — вернуть reserved_amount в Item.amount, удалить Reservation
+    // нет строк по orderId → ничего не делать (повтор команды ок)
 }

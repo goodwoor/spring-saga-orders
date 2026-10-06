@@ -25,15 +25,60 @@ sequenceDiagram
     GW->>O: POST /order
     O->>O: CREATED
     O->>K: OrderCreated
-    O->>K: Reserve (команда)
+    O->>K: CreateReserveCommand
     K->>I: reserve
-    I->>I: выбрать склады, резерв
-    I->>K: InventoryReserved
-    O->>K: Charge
+    I->>I: списать остаток + Reservation
+    I->>K: ReserveCreated
+    O->>O: AWAITING_PAYMENT
+    O->>K: CreatePaymentCommand
     K->>P: списать
     P->>K: PaymentCompleted
     O->>O: CONFIRMED
-    O->>K: OrderConfirmed + allocations
+    O->>K: OrderConfirmed
+  </pre>
+
+  <h2>Компенсация: резерв не прошёл</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    participant GW as Gateway
+    participant O as Order
+    participant I as Inventory
+    participant K as Kafka
+
+    GW->>O: POST /order
+    O->>O: CREATED
+    O->>K: OrderCreated
+    O->>K: CreateReserveCommand
+    K->>I: reserve
+    I->>I: нет товара / нехватка остатка
+    I->>K: ReserveFailed
+    K->>O: ReserveFailed
+    O->>O: CANCELLED
+    O->>K: OrderCancelled
+    Note over O,I: оплату не запускаем
+  </pre>
+
+  <h2>Компенсация: оплата не прошла</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    participant O as Order
+    participant I as Inventory
+    participant P as Payment
+    participant K as Kafka
+
+    Note over O,I: резерв уже есть, статус AWAITING_PAYMENT
+    O->>K: CreatePaymentCommand
+    K->>P: списать
+    P->>P: отказ списания
+    P->>K: PaymentFailed
+    K->>O: PaymentFailed
+    O->>K: ReleaseReserveCommand
+    K->>I: release
+    I->>I: вернуть остаток, снять Reservation
+    I->>K: ReserveReleased
+    K->>O: ReserveReleased
+    O->>O: CANCELLED
+    O->>K: OrderCancelled
   </pre>
 
   <h2>Доставка (после CONFIRMED)</h2>

@@ -1,4 +1,4 @@
-package saga.events;
+package saga.events.reserve;
 
 import java.math.BigDecimal;
 

@@ -1,4 +1,4 @@
-package saga.events;
+package saga.events.order;
 
 import java.math.BigDecimal;
 import java.time.Instant;

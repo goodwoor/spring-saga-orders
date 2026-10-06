@@ -1,0 +1,5 @@
+workspace:
+  id: ffa7c6a4-167a-481c-8525-eeba7203499b
+cloudResources:
+  collections:
+    ../postman/collections/Saga-orders: 32440581-7c4d1e72-856f-41eb-aca4-7b55d2f863c8

@@ -11,6 +11,12 @@ import saga.dto.OrderResponse;
 import saga.entity.Order;
 import saga.entity.OrderItem;
 import saga.events.*;
+import saga.events.order.OrderCancelled;
+import saga.events.order.OrderConfirmed;
+import saga.events.order.OrderCreated;
+import saga.events.order.OrderLine;
+import saga.events.reserve.ReserveCreated;
+import saga.events.reserve.ReserveFailed;
 
 @Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
 public interface OrderMapper {
@@ -24,5 +30,7 @@ public interface OrderMapper {
     CreateReserveCommand toCreateReserveCommand(OrderCreated orderCreatedEvent);
     CreatePaymentCommand toCreatePaymentCommand(ReserveCreated reserveCreatedEvent);
     OrderConfirmed toOrderConfirmed(PaymentCompleted paymentCompletedEvent);
+    OrderCancelled toOrderCancelled(ReserveFailed reserveFailed);
+    // TODO шаг 5: toOrderCancelled(Long orderId) или из ReserveReleased
     CreateDeliveryCommand toCreateDeliveryCommand(PaymentCompleted paymentCompletedEvent);
 }

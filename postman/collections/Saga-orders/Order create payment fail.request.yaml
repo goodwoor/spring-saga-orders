@@ -1,0 +1,26 @@
+$kind: http-request
+name: Order create payment fail
+url: http://localhost:8081/order
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "userId": 9999,
+      "cost": 1149.00,
+      "orderItems": [
+        {
+          "itemId": 1,
+          "amount": 1,
+          "cost": 999.00
+        },
+        {
+          "itemId": 2,
+          "amount": 1,
+          "cost": 150.00
+        }
+      ]
+    }
+order: 8000

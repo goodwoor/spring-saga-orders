@@ -1,6 +1,6 @@
 package saga.commands;
 
-import saga.events.OrderLine;
+import saga.events.order.OrderLine;
 
 import java.math.BigDecimal;
 import java.util.List;

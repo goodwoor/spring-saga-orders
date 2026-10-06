@@ -30,6 +30,7 @@ public class PaymentCommandListener {
         log.info("Received command: create payment: {}", command.orderId());
         Payment newPayment = service.createPayment(command);
 
+        // TODO шаг 5: SUCCESS → PaymentCompleted, FAILED → PaymentFailed
         PaymentCompleted event = new PaymentCompleted(
                 command.orderId(),
                 command.userId(),
@@ -38,4 +39,6 @@ public class PaymentCommandListener {
 
         producer.send("payment-events", command.orderId().toString(), event);
     }
+
+    // TODO шаг 5: @KafkaHandler(isDefault = true) — лог + ack, иначе poison pill
 }

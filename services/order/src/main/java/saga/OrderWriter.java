@@ -101,4 +101,24 @@ public class OrderWriter {
         order.setStatus(OrderStatus.CONFIRMED);
         return true;
     }
+
+    @Transactional
+    public Boolean validateAndSetCancelledStatus(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElse(null);
+
+        if (order == null) {
+            log.warn("Not found order %s".formatted(orderId));
+            return false;
+        }
+
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            log.info("Order %s already have status: %s".formatted(orderId, order.getStatus()));
+            return false;
+        }
+
+        // TODO шаг 5: отменять только CREATED / AWAITING_PAYMENT; CONFIRMED — warn + false
+        order.setStatus(OrderStatus.CANCELLED);
+        return true;
+    }
 }
