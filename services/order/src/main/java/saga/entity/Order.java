@@ -85,16 +85,12 @@ public class Order {
         return statusChangedDate;
     }
 
-    public void setStatusChangedDate(Instant statusChangedDate) {
+    private void setStatusChangedDate(Instant statusChangedDate) {
         this.statusChangedDate = statusChangedDate;
     }
 
     public Instant getCreatedAt() {
         return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
     }
 
     public List<OrderItem> getOrderItems() {

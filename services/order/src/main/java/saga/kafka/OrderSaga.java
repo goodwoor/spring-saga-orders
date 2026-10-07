@@ -27,17 +27,20 @@ import saga.events.inventory.ReserveFailed;
 public class OrderSaga {
     private static final Logger log = LoggerFactory.getLogger(OrderSaga.class);
     private final KafkaTemplate<String, Object> producer;
+    private final OutBoxProducer outBoxProducer;
     private final OrderWriter orderWriter;
     private final OrderMapper mapper;
 
     @Autowired
     OrderSaga(
             KafkaTemplate<String, Object> producer,
+            OutBoxProducer outBoxProducer,
             OrderWriter orderWriter,
             OrderMapper mapper
     )
     {
         this.producer = producer;
+        this.outBoxProducer = outBoxProducer;
         this.orderWriter = orderWriter;
         this.mapper = mapper;
     }

@@ -24,7 +24,6 @@ public class OrderWriter {
         this.orderRepository = orderRepository;
     }
 
-    @Transactional
     public Order createOrder(OrderCreateRequest createRequest) {
         Instant now = Instant.now();
 

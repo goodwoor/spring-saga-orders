@@ -76,22 +76,19 @@ public class Payment {
 
     public void setStatus(PaymentStatus status) {
         this.status = status;
+        this.setStatusChangedDate(Instant.now());
     }
 
     public Instant getStatusChangedDate() {
         return statusChangedDate;
     }
 
-    public void setStatusChangedDate(Instant statusChangedDate) {
+    private void setStatusChangedDate(Instant statusChangedDate) {
         this.statusChangedDate = statusChangedDate;
     }
 
     public Instant getCreatedAt() {
         return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
     }
 
     public BigDecimal getCost() {

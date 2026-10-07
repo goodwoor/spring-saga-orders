@@ -1,5 +1,6 @@
 package saga;
 
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import saga.dto.OrderCreateRequest;
@@ -47,6 +48,7 @@ public class OrderService {
         return ordersDto;
     }
 
+    @Transactional
     public OrderResponse processCreateOrder(OrderCreateRequest createRequest) {
         Order savedOrder = orderWriter.createOrder(createRequest);
         saga.sendOrderCreatedEvent(savedOrder);
