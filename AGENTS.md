@@ -1,7 +1,7 @@
 # AGENTS.md — saga-orders
 
 Контекст для работы над этим репозиторием (агенты и разработчики).  
-Обновлено: 7 октября 2026.
+Обновлено: 9 октября 2026.
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
@@ -36,7 +36,7 @@ saga-orders/
 └── services/                        # packaging pom + общие deps сервисов
     ├── pom.xml                      # JPA, Liquibase, Kafka, Web, Resilience4j,
     │                                # MapStruct 1.6.3 + processor; spring-cloud BOM 2025.1.3
-    ├── order/                       # :8083  POST /order → БД + OrderCreated в order-events
+    ├── order/                       # :8083  POST /order → БД + outbox → Kafka
     ├── inventory/                   # :8082  GET /inventory → товары
     └── payment/                     # :8084  GET /payment → платежи
 ```
@@ -50,7 +50,7 @@ dto/             # HTTP records (в payment record лежит в saga, не в d
 repository/      # только inventory; order/payment — репозиторий в saga
 ```
 
-Миграции: `01-create-tables.sql` + `02-seed-data.sql`.
+Миграции: `01-create-tables.sql` + `02-seed-data.sql`; у Order ещё `03-create-outbox-table.sql`.
 
 ### Порты и маршруты
 
@@ -68,7 +68,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 | Сервис | Таблицы | Важное |
 |--------|---------|--------|
-| **order** | `orders`, `order_items` | FK items→orders; индексы `user_id`, `order_id` |
+| **order** | `orders`, `order_items`, `outbox` | FK items→orders; индексы `user_id`, `order_id`; outbox UNIQUE `(message_key, message_type)`, индекс `status` |
 | **inventory** | `items`, `reservations` | UNIQUE `(order_id, item_id)` |
 | **payment** | `payments` | UNIQUE `order_id` (задел под идемпотентность) |
 
@@ -93,7 +93,8 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 | Inventory/Payment HTTP | `GET /inventory`, `GET /payment` → Service → Mapper → репозиторий; DTO-record |
 | Order HTTP | `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`; create request-DTO |
 | Order + N+1 | `findAllWithItems` / `findWithItems` (`@EntityGraph` `orderItems`) |
-| Оркестратор | `services/order/.../kafka/OrderSaga.java` — `@KafkaListener` на `inventory-events` + `payment-events`, `@KafkaHandler` на тип; статусы через `OrderWriter` |
+| Оркестратор | `services/order/.../kafka/OrderSaga.java` — `@KafkaListener` на `inventory-events` + `payment-events`, `@KafkaHandler` на тип; статусы через `OrderWriter`; исходящие — `OutBoxProducer` |
+| Outbox | `OutBoxProducer` (insert в той же TX) + `OutBoxScheduler` (`@Scheduled` → Kafka → `PROCESSED`) |
 | Inventory резерв | `InventoryCommandListener` (`inventory-commands`) → `reserveItems` / `revertReserve` → `ReserveCreated` / `ReserveFailed` / `ReserveReverted` |
 | Payment | `PaymentCommandListener` (`payment-commands`) → `createPayment` → `PaymentCompleted` / `PaymentFailed` (`userId == 9999` → `FAILED`) |
 | События / команды | `common/dto` — `saga.events.order` / `saga.events.inventory` / `saga.events.payment`, `saga.commands` |
@@ -151,7 +152,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 **Read-модель (CQRS, опционал):** `order_view` — денормализованная таблица под чтение (имена товаров текстом и т.п.), без джойнов между сервисами.
 
-**Dual-write / Outbox:** запись в БД и публикация в Kafka — две операции. Надёжный вариант: событие в `outbox` в той же транзакции, что и данные; отдельный процесс публикует в Kafka. В первой версии допустимо упростить (publish после commit), понимая риск потери события при падении между commit и send.
+**Dual-write / Outbox:** в сервисе `order` закрыт: строка в `outbox` в той же транзакции, что заказ/статус; `OutBoxScheduler` публикует в Kafka. Inventory/Payment пока шлют напрямую (шаг 7 только Order).
 
 ---
 
@@ -161,18 +162,18 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 | Топик | Пишет | Читает (group) | Есть сейчас | Планируется |
 |-------|-------|----------------|-------------|-------------|
-| `order-events` | Order | никто (задел: read-модель) | `OrderCreated`, `OrderConfirmed`, `OrderCancelled` | — |
-| `inventory-commands` | Order | Inventory (`inventory-service`) | `CreateReserveCommand`, `RevertReserveCommand` | — |
-| `inventory-events` | Inventory | Order (`order-service`) | `ReserveCreated`, `ReserveFailed`, `ReserveReverted` | — |
-| `payment-commands` | Order | Payment (`payment-service`) | `CreatePaymentCommand` | — |
-| `payment-events` | Payment | Order (`order-service`) | `PaymentCompleted` (`orderId`, `userId`, `paymentId`), `PaymentFailed` (`orderId`, `userId`, `reason`) | — |
+| `order-events` | Order (`OutBoxScheduler`) | никто (задел: read-модель) | `OrderCreated`, `OrderConfirmed`, `OrderCancelled` | — |
+| `inventory-commands` | Order (`OutBoxScheduler`) | Inventory (`inventory-service`) | `CreateReserveCommand`, `RevertReserveCommand` | — |
+| `inventory-events` | Inventory (напрямую) | Order (`order-service`) | `ReserveCreated`, `ReserveFailed`, `ReserveReverted` | — |
+| `payment-commands` | Order (`OutBoxScheduler`) | Payment (`payment-service`) | `CreatePaymentCommand` | — |
+| `payment-events` | Payment (напрямую) | Order (`order-service`) | `PaymentCompleted` (`orderId`, `userId`, `paymentId`), `PaymentFailed` (`orderId`, `userId`, `reason`) | — |
 | `delivery-events` | Delivery (позже) | Order | — | «доставка завершена» → `COMPLETED` |
 
 Классы сообщений — `common/dto`: `saga.events`, `saga.commands`.
 
 **Ключ сообщения = id заказа** — все сообщения одного заказа в одной партиции, строгий порядок.
 
-**Оркестратор** — роль **внутри Order**, не четвёртый сервис: статус саги = `orders.status`. Consumer событий → смотрит статус → публикует следующую **команду** в Kafka (не REST для шагов саги).
+**Оркестратор** — роль **внутри Order**, не четвёртый сервис: статус саги = `orders.status`. Consumer событий → смотрит статус → пишет следующую **команду** в `outbox` (не REST, не прямой `KafkaTemplate`). Релей (`OutBoxScheduler`) читает `NEW` (`ORDER BY id`) и шлёт в Kafka.
 
 **Read-модель** (если есть) — отдельная consumer group на те же топики, обновляет `order_view`.
 
@@ -229,18 +230,19 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 ## Состояние кода (ориентир)
 
-**Есть:** multi-module Maven; Gateway 8081; Kafka compose (KRaft, RF=1 для `__consumer_offsets` на одном брокере); Postgres compose на сервис; Liquibase `01` + сиды `02`; сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`); репозитории (включая `ReservationRepository`); слой Controller → Service → MapStruct → DTO-record; Order — `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`.
+**Есть:** multi-module Maven; Gateway 8081; Kafka compose (KRaft, RF=1 для `__consumer_offsets` на одном брокере); Postgres compose на сервис; Liquibase `01` + сиды `02` + Order `03` (`outbox`); сущности (`Order`/`OrderItem`, `Item`/`Reservation`, `Payment`, `OutBoxItem`); репозитории (включая `ReservationRepository`, `OutBoxRepository`); слой Controller → Service → MapStruct → DTO-record; Order — `POST /order`, `GET /order`, `GET /order/{id}`; `OrderStatus`.
 
-Поток саги (ключ = `orderId` строкой везде):
-- `OrderWriter.createOrder` (`CREATED`, `@Transactional`), затем `OrderSaga` шлёт `OrderCreated` в `order-events` и сразу `CreateReserveCommand` в `inventory-commands` (после commit, без Outbox; без круга через свой listener).
-- Inventory: списывает остаток + `Reservation` в одной транзакции → `ReserveCreated`; нехватка / нет товара → rollback + `ReserveFailed` (`NOT_ENOUGH_AMOUNT` / `ITEMS_NOT_FOUND`).
-- `OrderSaga` на `ReserveCreated` → `validateAndSetAwaitingPaymentStatus` → при `true` `CreatePaymentCommand`.
-- `OrderSaga` на `ReserveFailed` → `validateAndSetCancelledStatus` → `OrderCancelled` в `order-events` (оплату не шлёт).
+Поток саги (ключ = `orderId` строкой везде). Исходящие из Order — только `OutBoxProducer.send` (Jackson 3 `JsonMapper`); UNIQUE `(message_key, message_type)` + skip дубля.
+- `OrderService.processCreateOrder` (`@Transactional`): `createOrder` (`CREATED`) + `OrderCreated` + `CreateReserveCommand` в outbox (без круга через свой listener).
+- Inventory: списывает остаток + `Reservation` в одной транзакции → `ReserveCreated`; нехватка / нет товара → rollback + `ReserveFailed` (`NOT_ENOUGH_AMOUNT` / `ITEMS_NOT_FOUND`). Прямой `KafkaTemplate`.
+- `OrderSaga.onReserveCreated` (`@Transactional`): `validateAndSetAwaitingPaymentStatus` → при `true` `CreatePaymentCommand` в outbox.
+- `OrderSaga.onReserveFailed` (`@Transactional`): `validateAndSetCancelledStatus` → `OrderCancelled` в outbox (оплату не шлёт).
 - Payment: `userId == 9999` → `FAILED` + `PaymentFailed`; иначе `SUCCESS` + `PaymentCompleted`. `Payment.status` — `@Enumerated(STRING)`. Повтор `CreatePaymentCommand`: `findByOrderId` → вернуть существующий, listener шлёт тот же исход. UNIQUE `order_id` — страховка на гонку.
-- `OrderSaga` на `PaymentCompleted` → `validateAndSetConfirmedStatus` → при `true` `OrderConfirmed` в `order-events`.
-- `OrderSaga` на `PaymentFailed` → `RevertReserveCommand` в `inventory-commands` (статус заказа ещё `AWAITING_PAYMENT`).
+- `OrderSaga.onPaymentCompleted` (`@Transactional`): `validateAndSetConfirmedStatus` → при `true` `OrderConfirmed` в outbox.
+- `OrderSaga.onPaymentFailed`: `RevertReserveCommand` в outbox (статус заказа ещё `AWAITING_PAYMENT`).
 - Inventory `revertReserve`: вернуть остаток, удалить `Reservation` → `ReserveReverted`.
-- `OrderSaga` на `ReserveReverted` → `validateAndSetCancelledStatus` → `OrderCancelled`.
+- `OrderSaga.onReserveReverted` (`@Transactional`): `validateAndSetCancelledStatus` → `OrderCancelled` в outbox.
+- `OutBoxScheduler`: `NEW` по `id` ASC → deserialize по `messageType` → `KafkaTemplate.send(...).get()` → `PROCESSED`.
 
 `OrderSaga`: `@KafkaListener(topics = {"inventory-events", "payment-events"})` + `@KafkaHandler` на тип; `isDefault = true` в Order / Inventory / Payment. Trusted packages: `saga.commands,saga.events,saga.events.inventory,saga.events.order,saga.events.payment`.
 
@@ -252,7 +254,9 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 **Шаг 6 идемпотентность Payment — закрыт кодом.** Ретрай Kafka руками не проверяли; фиксация — на шаге 9 (Testcontainers).
 
-**Нет / дальше:** Outbox (шаг 7, сервис `order`); `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать).
+**Шаг 7 Outbox (сервис `order`) — закрыт:** Postman happy-path + обе компенсации. Inventory/Payment без outbox.
+
+**Нет / дальше:** `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать).
 
 **Локально Kafka:** брокер только в корневом `compose.yaml`. Compose Order поднимает Postgres, не Kafka — без `docker compose -f compose.yaml up -d` клиент крутит reconnect на `localhost:9092`.
 
@@ -268,7 +272,7 @@ Gateway routes (из `common/gateway/.../application.properties`): `/inventory/*
 
 Порядок: миграции → CRUD → Kafka → **happy-path** → компенсация (2 ветки) → идемпотентность Payment → Outbox → `@Version` + `EXPLAIN` → Testcontainers (2 теста) → README.
 
-**Сейчас:** шаг 7 — Outbox в сервисе `order`. Шаг 6 закрыт кодом (ретрай — на Testcontainers).
+**Сейчас:** шаг 8 — `@Version` на `Item` + `EXPLAIN ANALYZE`. Шаг 7 закрыт (ретрай Payment — на Testcontainers).
 
 ---
 

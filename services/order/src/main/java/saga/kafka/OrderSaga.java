@@ -1,11 +1,11 @@
 package saga.kafka;
 
+import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import saga.OrderMapper;
 import saga.OrderWriter;
@@ -26,20 +26,17 @@ import saga.events.inventory.ReserveFailed;
 @KafkaListener(topics = {"inventory-events", "payment-events"}, groupId = "order-service")
 public class OrderSaga {
     private static final Logger log = LoggerFactory.getLogger(OrderSaga.class);
-    private final KafkaTemplate<String, Object> producer;
     private final OutBoxProducer outBoxProducer;
     private final OrderWriter orderWriter;
     private final OrderMapper mapper;
 
     @Autowired
     OrderSaga(
-            KafkaTemplate<String, Object> producer,
             OutBoxProducer outBoxProducer,
             OrderWriter orderWriter,
             OrderMapper mapper
     )
     {
-        this.producer = producer;
         this.outBoxProducer = outBoxProducer;
         this.orderWriter = orderWriter;
         this.mapper = mapper;
@@ -60,6 +57,7 @@ public class OrderSaga {
     }
 
     @KafkaHandler
+    @Transactional
     public void onReserveCreated(ReserveCreated event) {
         log.info("Received event: reserve created: {}", event.orderId());
 
@@ -71,11 +69,12 @@ public class OrderSaga {
 
     public void sendCreatePaymentCommand(ReserveCreated event) {
         CreatePaymentCommand createPaymentCommand = mapper.toCreatePaymentCommand(event);
-        producer.send("payment-commands", event.orderId().toString(), createPaymentCommand);
+        outBoxProducer.send(event.orderId().toString(), createPaymentCommand);
         log.info("Send command: create payment: {}", event.orderId());
     }
 
     @KafkaHandler
+    @Transactional
     public void onReserveFailed(ReserveFailed event) {
         log.info("Received event: reserve failed: {}", event);
 
@@ -87,11 +86,12 @@ public class OrderSaga {
     }
 
     public void sendOrderCancelledEvent(OrderCancelled orderCancelled) {
-        producer.send("order-events", orderCancelled.orderId().toString(), orderCancelled);
+        outBoxProducer.send(orderCancelled.orderId().toString(), orderCancelled);
         log.info("Send event: cancel order: {}", orderCancelled);
     }
 
     @KafkaHandler
+    @Transactional
     public void onPaymentCompleted(PaymentCompleted event) {
         log.info("Received event: payment completed: {}", event);
 
@@ -103,7 +103,7 @@ public class OrderSaga {
 
     public void sendOrderConfirmedEvent(PaymentCompleted event) {
         OrderConfirmed orderConfirmed = mapper.toOrderConfirmed(event);
-        producer.send("order-events", orderConfirmed.orderId().toString(), orderConfirmed);
+        outBoxProducer.send(orderConfirmed.orderId().toString(), orderConfirmed);
         log.info("Send event: confirm order: {}", orderConfirmed);
     }
 
@@ -115,13 +115,15 @@ public class OrderSaga {
     }
 
     public void sendRevertReservationCommand(RevertReserveCommand event) {
-        producer.send("inventory-commands", event.orderId().toString(), event);
+        outBoxProducer.send(event.orderId().toString(), event);
         log.info("Send command: revert reservation: {}", event.orderId());
     }
 
     @KafkaHandler
+    @Transactional
     public void onReserveReverted(ReserveReverted event) {
         log.info("Received event: reserve reverted: {}", event);
+
         Boolean validateResult = orderWriter.validateAndSetCancelledStatus(event.orderId());
         if (validateResult) {
             OrderCancelled orderCancelled = mapper.toOrderCancelled(event);

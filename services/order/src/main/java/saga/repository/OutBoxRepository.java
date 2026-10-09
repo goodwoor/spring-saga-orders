@@ -11,5 +11,5 @@ import java.util.Optional;
 @Repository
 public interface OutBoxRepository extends JpaRepository<OutBoxItem, Long> {
     Optional<OutBoxItem> findByMessageKeyAndMessageType(String messageKey, String messageType);
-    List<OutBoxItem> findByStatusOrderByIdAsc(OutBoxItemStatus status);
+    List<OutBoxItem> findTop100ByStatusOrderByIdAsc(OutBoxItemStatus status);
 }

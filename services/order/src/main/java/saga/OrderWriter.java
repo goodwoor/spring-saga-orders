@@ -1,6 +1,5 @@
 package saga;
 
-import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,7 +50,6 @@ public class OrderWriter {
         return savedOrder;
     }
 
-    @Transactional
     public Boolean validateAndSetAwaitingPaymentStatus(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElse(null);
@@ -77,7 +75,6 @@ public class OrderWriter {
         return true;
     }
 
-    @Transactional
     public Boolean validateAndSetConfirmedStatus(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElse(null);
@@ -101,7 +98,6 @@ public class OrderWriter {
         return true;
     }
 
-    @Transactional
     public Boolean validateAndSetCancelledStatus(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElse(null);
