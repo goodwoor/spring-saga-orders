@@ -10,7 +10,7 @@ CREATE TABLE outbox (
     status_changed_date TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     CONSTRAINT uq_outbox_unique_message
-            UNIQUE (message_id, message_type)
+            UNIQUE (message_key, message_type)
 );
 
 CREATE INDEX idx_outbox_status ON outbox (status);

@@ -45,16 +45,17 @@ public class OrderSaga {
         this.mapper = mapper;
     }
 
-    public void sendOrderCreatedEvent(Order savedOrder) {
+    public void sendOrderCreatedEvent(Order savedOrder)
+    {
         OrderCreated event = mapper.toOrderCreated(savedOrder);
         log.info("Send event: order created {}", savedOrder.getId());
-        producer.send("order-events", savedOrder.getId().toString(), event);
+        outBoxProducer.send(savedOrder.getId().toString(), event);
         sendCreateReserveCommand(event);
     }
 
     public void sendCreateReserveCommand(OrderCreated event) {
         CreateReserveCommand createReserveCommand = mapper.toCreateReserveCommand(event);
-        producer.send("inventory-commands", event.orderId().toString(), createReserveCommand);
+        outBoxProducer.send(event.orderId().toString(), createReserveCommand);
         log.info("Send command: reserve order: {}", event.orderId());
     }
 
