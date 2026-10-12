@@ -15,6 +15,6 @@
     <modules>
         <module>dto</module>
         <module>gateway</module>
+        <module>outbox</module>
     </modules>
-
 </project>

@@ -20,12 +20,3 @@ services:
       - postgres-order
       - kafka
     profiles: ["apps"]
-
-  payment:
-    image: saga/payment:0.0.1-SNAPSHOT
-    ports:
-      - "8084:8084"
-    depends_on:
-      - postgres-payment
-      - kafka
-    profiles: ["apps"]
