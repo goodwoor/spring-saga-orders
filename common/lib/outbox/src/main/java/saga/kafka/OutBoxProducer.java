@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import saga.entity.OutBoxItem;
 import saga.entity.OutBoxItemStatus;
+import saga.entity.Topic;
 import saga.repository.OutBoxRepository;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -24,9 +25,9 @@ public class OutBoxProducer {
         this.mapper = mapper;
     }
 
-    public void send(String key, Object message)
+    public void send(Topic topic, String key, Object message)
     {
-        String messageType = message.getClass().getSimpleName();
+        String messageType = message.getClass().getName();
         OutBoxItem oldItem = outBoxRepository.findByMessageKeyAndMessageType(
                 key,
                 messageType
@@ -41,6 +42,7 @@ public class OutBoxProducer {
         OutBoxItem newItem = new OutBoxItem(
                 key,
                 messageType,
+                topic,
                 payload,
                 OutBoxItemStatus.NEW,
                 now,

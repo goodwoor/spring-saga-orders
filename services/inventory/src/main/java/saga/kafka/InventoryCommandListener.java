@@ -6,12 +6,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import saga.InventoryMapper;
 import saga.InventoryService;
 import saga.commands.CreateReserveCommand;
 import saga.commands.RevertReserveCommand;
+import saga.entity.Topic;
 import saga.events.inventory.ReserveCreated;
 import saga.events.inventory.ReserveFailed;
 import saga.events.inventory.ReserveFailedReason;
@@ -22,13 +22,13 @@ import saga.events.inventory.ReserveReverted;
 public class InventoryCommandListener {
     private static final Logger log = LoggerFactory.getLogger(InventoryCommandListener.class);
     private final InventoryService service;
-    private final KafkaTemplate<String, Object> producer;
+    private final OutBoxProducer producer;
     private final InventoryMapper mapper;
 
     @Autowired
     InventoryCommandListener(
             InventoryService service,
-            KafkaTemplate<String, Object> producer,
+            OutBoxProducer producer,
             InventoryMapper mapper
     ) {
         this.service = service;
@@ -37,6 +37,7 @@ public class InventoryCommandListener {
     }
 
     @KafkaHandler
+    @Transactional
     public void onReserveCommand(CreateReserveCommand command) {
         log.info("Received command: create reserve: {}", command.orderId());
         ReserveFailed failedEvent = null;
@@ -57,20 +58,21 @@ public class InventoryCommandListener {
 
         if (failedEvent != null) {
             log.warn("Reserve failed, order id: {}, reason: {}", command.orderId(), failedEvent.reason());
-            producer.send("inventory-events", failedEvent.orderId().toString(), failedEvent);
+            producer.send(Topic.INVENTORY_EVENTS, failedEvent.orderId().toString(), failedEvent);
             return;
         }
 
         ReserveCreated reserveCreatedEvent = mapper.toReserveCreated(command);
-        producer.send("inventory-events", command.orderId().toString(), reserveCreatedEvent);
+        producer.send(Topic.INVENTORY_EVENTS, command.orderId().toString(), reserveCreatedEvent);
     }
 
     @KafkaHandler
+    @Transactional
     public void onRevertReserveCommand(RevertReserveCommand command) {
         log.info("Received command: revert reserve: {}", command.orderId());
         service.revertReserve(command.orderId());
         ReserveReverted reserveCreatedEvent = mapper.toReserveReverted(command);
-        producer.send("inventory-events", command.orderId().toString(), reserveCreatedEvent);
+        producer.send(Topic.INVENTORY_EVENTS, command.orderId().toString(), reserveCreatedEvent);
     }
 
     @KafkaHandler(isDefault = true)

@@ -4,14 +4,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import saga.commands.CreatePaymentCommand;
-import saga.commands.CreateReserveCommand;
-import saga.commands.RevertReserveCommand;
 import saga.entity.OutBoxItem;
 import saga.entity.OutBoxItemStatus;
-import saga.events.order.OrderCancelled;
-import saga.events.order.OrderConfirmed;
-import saga.events.order.OrderCreated;
 import saga.repository.OutBoxRepository;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -45,33 +39,17 @@ public class OutBoxScheduler {
 
         for (OutBoxItem message: messagesForSend) {
             try {
-                if (message.getMessageType().equals(OrderCreated.class.getSimpleName())) {
-                    OrderCreated event = mapper.readValue(message.getJsonPayload(), OrderCreated.class);
-                    producer.send("order-events", message.getMessageKey(), event).get();
-                }
-                else if (message.getMessageType().equals(CreateReserveCommand.class.getSimpleName())) {
-                    CreateReserveCommand event = mapper.readValue(message.getJsonPayload(), CreateReserveCommand.class);
-                    producer.send("inventory-commands", message.getMessageKey(), event).get();
-                } else if (message.getMessageType().equals(CreatePaymentCommand.class.getSimpleName())) {
-                    CreatePaymentCommand event = mapper.readValue(message.getJsonPayload(), CreatePaymentCommand.class);
-                    producer.send("payment-commands", message.getMessageKey(), event).get();
-                } else if (message.getMessageType().equals(OrderCancelled.class.getSimpleName())) {
-                    OrderCancelled event = mapper.readValue(message.getJsonPayload(), OrderCancelled.class);
-                    producer.send("order-events", message.getMessageKey(), event).get();
-                } else if (message.getMessageType().equals(OrderConfirmed.class.getSimpleName())) {
-                    OrderConfirmed event = mapper.readValue(message.getJsonPayload(), OrderConfirmed.class);
-                    producer.send("order-events", message.getMessageKey(), event).get();
-                } else if (message.getMessageType().equals(RevertReserveCommand.class.getSimpleName())) {
-                    RevertReserveCommand event = mapper.readValue(message.getJsonPayload(), RevertReserveCommand.class);
-                    producer.send("inventory-commands", message.getMessageKey(), event).get();
-                } else {
-                    throw new IllegalStateException(
-                            "Unknown message type: %s, message: %s".formatted(
-                                    message.getMessageType(),
-                                    message
-                            )
-                    );
-                }
+                String className = message.getMessageType();
+                Class<?> type = Class.forName(className);
+                Object event = mapper.readValue(message.getJsonPayload(), type);
+                producer.send(message.getTopic().getCode(), message.getMessageKey(), event).get();
+            } catch (ClassNotFoundException exception) {
+                throw new IllegalStateException(
+                        "Unknown message type: %s, message: %s".formatted(
+                                message.getMessageType(),
+                                message
+                        )
+                );
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("Outbox send failed, thread interrupted", exception);

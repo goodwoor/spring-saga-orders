@@ -13,6 +13,7 @@ import saga.commands.CreatePaymentCommand;
 import saga.commands.CreateReserveCommand;
 import saga.commands.RevertReserveCommand;
 import saga.entity.Order;
+import saga.entity.Topic;
 import saga.events.inventory.ReserveReverted;
 import saga.events.order.OrderCancelled;
 import saga.events.order.OrderConfirmed;
@@ -46,13 +47,13 @@ public class OrderSaga {
     {
         OrderCreated event = mapper.toOrderCreated(savedOrder);
         log.info("Send event: order created {}", savedOrder.getId());
-        outBoxProducer.send(savedOrder.getId().toString(), event);
+        outBoxProducer.send(Topic.ORDER_EVENTS, savedOrder.getId().toString(), event);
         sendCreateReserveCommand(event);
     }
 
     public void sendCreateReserveCommand(OrderCreated event) {
         CreateReserveCommand createReserveCommand = mapper.toCreateReserveCommand(event);
-        outBoxProducer.send(event.orderId().toString(), createReserveCommand);
+        outBoxProducer.send(Topic.INVENTORY_COMMANDS, event.orderId().toString(), createReserveCommand);
         log.info("Send command: reserve order: {}", event.orderId());
     }
 
@@ -69,7 +70,7 @@ public class OrderSaga {
 
     public void sendCreatePaymentCommand(ReserveCreated event) {
         CreatePaymentCommand createPaymentCommand = mapper.toCreatePaymentCommand(event);
-        outBoxProducer.send(event.orderId().toString(), createPaymentCommand);
+        outBoxProducer.send(Topic.PAYMENT_COMMANDS, event.orderId().toString(), createPaymentCommand);
         log.info("Send command: create payment: {}", event.orderId());
     }
 
@@ -86,7 +87,7 @@ public class OrderSaga {
     }
 
     public void sendOrderCancelledEvent(OrderCancelled orderCancelled) {
-        outBoxProducer.send(orderCancelled.orderId().toString(), orderCancelled);
+        outBoxProducer.send(Topic.ORDER_EVENTS, orderCancelled.orderId().toString(), orderCancelled);
         log.info("Send event: cancel order: {}", orderCancelled);
     }
 
@@ -103,11 +104,12 @@ public class OrderSaga {
 
     public void sendOrderConfirmedEvent(PaymentCompleted event) {
         OrderConfirmed orderConfirmed = mapper.toOrderConfirmed(event);
-        outBoxProducer.send(orderConfirmed.orderId().toString(), orderConfirmed);
+        outBoxProducer.send(Topic.ORDER_EVENTS, orderConfirmed.orderId().toString(), orderConfirmed);
         log.info("Send event: confirm order: {}", orderConfirmed);
     }
 
     @KafkaHandler
+    @Transactional
     public void onPaymentFailed(PaymentFailed event) {
         log.info("Received event: payment failed: {}", event);
         RevertReserveCommand revertReserveCommand = mapper.toRevertReservationCommand(event);
@@ -115,7 +117,7 @@ public class OrderSaga {
     }
 
     public void sendRevertReservationCommand(RevertReserveCommand event) {
-        outBoxProducer.send(event.orderId().toString(), event);
+        outBoxProducer.send(Topic.INVENTORY_COMMANDS, event.orderId().toString(), event);
         log.info("Send command: revert reservation: {}", event.orderId());
     }
 

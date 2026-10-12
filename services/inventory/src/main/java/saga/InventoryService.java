@@ -48,7 +48,6 @@ public class InventoryService {
         return itemsDto;
     }
 
-    @Transactional
     public void reserveItems(CreateReserveCommand command)
             throws ItemsNotFoundException, NotEnoughAmountException
     {
@@ -106,7 +105,6 @@ public class InventoryService {
         reservationRepository.saveAll(reservations);
     }
 
-    @Transactional
     public void revertReserve(Long orderId) {
         List<Reservation> allReservations = reservationRepository.findAllByOrderId(orderId);
 

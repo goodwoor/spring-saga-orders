@@ -39,7 +39,6 @@ public class PaymentService {
         return paymentsDto;
     }
 
-    @Transactional
     public Payment createPayment(CreatePaymentCommand command)
     {
         Instant now = Instant.now();

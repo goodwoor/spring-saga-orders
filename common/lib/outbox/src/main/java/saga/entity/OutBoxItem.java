@@ -15,8 +15,11 @@ public class OutBoxItem {
     @Column(name = "message_key", length = 300, nullable = false)
     private String messageKey;
 
-    @Column(name = "message_type", length = 30, nullable = false)
+    @Column(name = "message_type", length = 300, nullable = false)
     private String messageType;
+
+    @Column(name = "topic", length = 30, nullable = false)
+    private Topic topic;
 
     @Column(name = "payload", nullable = false)
     private String jsonPayload;
@@ -33,9 +36,10 @@ public class OutBoxItem {
 
     protected OutBoxItem() {};
 
-    public OutBoxItem(String messageKey, String messageType, String jsonPayload, OutBoxItemStatus status, Instant statusChangedDate, Instant createdAt) {
+    public OutBoxItem(String messageKey, String messageType, Topic topic, String jsonPayload, OutBoxItemStatus status, Instant statusChangedDate, Instant createdAt) {
         this.messageKey = messageKey;
         this.messageType = messageType;
+        this.topic = topic;
         this.jsonPayload = jsonPayload;
         this.status = status;
         this.statusChangedDate = statusChangedDate;
@@ -60,6 +64,14 @@ public class OutBoxItem {
 
     public void setMessageType(String messageType) {
         this.messageType = messageType;
+    }
+
+    public Topic getTopic() {
+        return topic;
+    }
+
+    public void setTopic(Topic topic) {
+        this.topic = topic;
     }
 
     public String getJsonPayload() {
