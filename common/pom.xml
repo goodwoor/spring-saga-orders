@@ -13,8 +13,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>dto</module>
-        <module>gateway</module>
-        <module>outbox</module>
+        <module>lib</module>
+        <module>common-services</module>
     </modules>
 </project>

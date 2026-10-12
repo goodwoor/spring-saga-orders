@@ -8,9 +8,15 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>dto</artifactId>
+    <artifactId>lib</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>dto</module>
+        <module>outbox</module>
+    </modules>
+
 
     <build>
         <plugins>
