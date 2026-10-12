@@ -27,8 +27,13 @@ flowchart TB
     end
 
     subgraph common["common"]
-        DTO["dto — события Kafka"]
-        GWMOD["модуль gateway"]
+        subgraph lib["lib — библиотеки"]
+            DTO["dto — события / команды Kafka"]
+            OUT["outbox — producer + scheduler"]
+        end
+        subgraph cserv["common-services"]
+            GWMOD["модуль gateway"]
+        end
     end
 
     SVCS["services"]
@@ -38,6 +43,7 @@ flowchart TB
     GWMOD --- GW
     GW --> SVCS
     DTO -.-> SVCS
+    OUT -.-> SVCS
     SVCS --- K
   </pre>
 
@@ -62,8 +68,11 @@ flowchart TB
     ROOT --> COM
     ROOT --> SVC
 
-    COM --> DTO["dto"]
-    COM --> GW["gateway"]
+    COM --> LIB["lib"]
+    COM --> CSERV["common-services"]
+    LIB --> DTO["dto"]
+    LIB --> OUT["outbox"]
+    CSERV --> GW["gateway"]
     SVC --> MODS["inventory · order · payment · delivery · carrier"]
   </pre>
 </body>
