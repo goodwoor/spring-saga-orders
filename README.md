@@ -1,59 +1,44 @@
 # saga-orders
 
-Saga (orchestration) на Spring Boot + Kafka + Postgres: Order → Inventory → Payment, компенсация при отказе, Outbox.
+Пет-проект интернет-магазина из трёх сервисов: заказ, склад и оплата. У каждого сервиса своя база. Общей транзакции на «создать заказ, зарезервировать товар и списать деньги» нет — шаги согласовывает **сага (Saga)**: цепочка локальных операций. Если шаг не удался, предыдущие откатываются компенсирующими действиями (например, снять резерв).
 
-## Быстрый старт (разработка в IDEA)
+Координатор — сервис заказов: он смотрит статус заказа и шлёт следующую команду.
 
-1. Инфра (Kafka, Kafka UI, pgAdmin, demo-ui):
+## Стек
 
-```powershell
-docker compose up -d
-```
+Java 21, Spring Boot 4.1.1, Spring Cloud Gateway, Apache Kafka, PostgreSQL (отдельная база на сервис), Liquibase, Maven (несколько модулей), MapStruct, Docker Compose. Фронт — Vite.
 
-2. В IntelliJ запусти (working directory = **корень репо**):
-   - `ApiGateway` (8081)
-   - `OrderApplication` (8083)
-   - `InventoryApplication` (8082)
-   - `PaymentApplication` (8084)
+## Архитектура и паттерны
 
-   Postgres поднимется сам через Spring Docker Compose (`profile db`).
+**Сага (orchestration):** один координатор в сервисе заказов.
 
-3. UI: http://localhost:5173 · Gateway API: http://localhost:8081  
-   Kafka UI: http://localhost:8090 · pgAdmin: http://localhost:5050 (`admin@example.com` / `admin`)
+Статусы заказа:
 
-Переключение с полного Docker-стека:
+1. `CREATED` — заказ сохранён, запрошен резерв на складе
+2. `AWAITING_PAYMENT` — товар зарезервирован, запрошена оплата
+3. `CONFIRMED` — оплата прошла
+4. `CANCELLED` — либо резерва не хватило (оплату не запускали), либо оплата не прошла (резерв снимают)
 
-```powershell
-.\scripts\to-idea.ps1
-```
+Прочие особенности:
 
-## Полный стек в Docker
+- **Своя база на сервис.** Сервисы не ходят в чужие таблицы.
+- **Transactional outbox.** Событие или команда пишется в таблицу `outbox` в той же транзакции, что изменение заказа / резерва / платежа. Отдельный планировщик потом публикует запись в Kafka — так нет «записали в БД, но не отправили в брокер» и наоборот.
+- **Идемпотентность оплаты.** Повтор той же команды не создаёт второй платёж: одна запись на заказ (`order_id`).
 
-Сборка образов + up (долго из‑за `build-image`):
+## Инфраструктура
 
-```powershell
-.\scripts\docker-up.ps1
-```
+Kafka, три PostgreSQL, шлюз API и три сервиса. Для просмотра: веб-консоль Kafka, pgAdmin, фронт на Vite.
 
-Если образы уже есть:
+Схемы:
 
-```powershell
-.\scripts\to-docker.ps1
-# или: docker compose --profile db --profile apps up -d
-```
+- [поток саги](docs/message-flow-order-saga.html) — успешный путь и две компенсации
+- [слои, сервисы, модули Maven](docs/infrastructure-layers-modules-and-runtime.html)
 
-Перед этим останови Run Configuration в IDEA (порты 8081–8084).
+Разработка: `docker compose up -d`, затем в IDE — Gateway, Order, Inventory, Payment. Весь стек в Docker: `.\scripts\to-docker.ps1`. Порты и переключение режимов — в [AGENTS.md](AGENTS.md).
 
-## Порты
+## Работа с AI
 
-| Что | Порт |
-|-----|------|
-| Gateway | 8081 |
-| Inventory / Order / Payment | 8082 / 8083 / 8084 |
-| Kafka | 9092 |
-| Kafka UI | 8090 |
-| pgAdmin | 5050 |
-| demo-ui | 5173 |
-| Postgres order / payment / inventory | 5433 / 5434 / 5435 |
+Агент помогает планировать и объяснять подход. Код саги пишется вручную.
 
-Подробный контекст проекта: [AGENTS.md](AGENTS.md).
+- Правила Cursor: [.cursor/rules](.cursor/rules)
+- Контекст репозитория для агента: [AGENTS.md](AGENTS.md)

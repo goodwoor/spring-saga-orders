@@ -8,72 +8,64 @@
     mermaid.initialize({
       startOnLoad: true,
       theme: "neutral",
-      flowchart: { useMaxWidth: false }
+      flowchart: { useMaxWidth: true }
     });
   </script>
   <style>
-    body { font-family: sans-serif; margin: 24px; }
-    h2 { margin-top: 32px; }
+    body { font-family: system-ui, sans-serif; margin: 24px; max-width: 900px; color: #222; }
+    h1 { font-size: 1.25rem; }
+    h2 { margin-top: 2rem; font-size: 1.05rem; }
   </style>
 </head>
 <body>
-  <h2>Runtime: слои</h2>
+  <h1>Saga Orders — инфраструктура</h1>
+
+  <h2>Runtime</h2>
   <pre class="mermaid">
 flowchart TB
-    FE[Фронт]
-
-    subgraph edge["Вход"]
-        GW["Gateway :8081"]
-    end
-
-    subgraph common["common"]
-        subgraph lib["lib — библиотеки"]
-            DTO["dto — события / команды Kafka"]
-            OUT["outbox — producer + scheduler"]
-        end
-        subgraph cserv["common-services"]
-            GWMOD["модуль gateway"]
-        end
-    end
-
-    SVCS["services"]
+    UI["demo-ui :5173"]
+    GW["Gateway :8081"]
+    ORD["Order :8083"]
+    INV["Inventory :8082"]
+    PAY["Payment :8084"]
     K["Kafka :9092"]
 
-    FE --> GW
-    GWMOD --- GW
-    GW --> SVCS
-    DTO -.-> SVCS
-    OUT -.-> SVCS
-    SVCS --- K
+    UI --> GW
+    GW --> ORD
+    GW --> INV
+    GW --> PAY
+    ORD <--> K
+    INV <--> K
+    PAY <--> K
   </pre>
 
-  <h2>Runtime: сервисы и их БД</h2>
+  <h2>Database-per-service</h2>
   <pre class="mermaid">
 flowchart LR
-    INV["inventory<br/>app :8082<br/>Postgres :5435"]
-    ORD["order<br/>app :8083<br/>Postgres :5433"]
-    PAY["payment<br/>app :8084<br/>Postgres :5434"]
-    DEL["delivery план<br/>app :8085<br/>Postgres :5436"]
-    CAR["carrier план<br/>app :8086<br/>Postgres :5437"]
-    INV ~~~ ORD ~~~ PAY ~~~ DEL ~~~ CAR
+    ORD["order<br/>Postgres :5433"]
+    INV["inventory<br/>Postgres :5435"]
+    PAY["payment<br/>Postgres :5434"]
   </pre>
 
   <h2>Maven-модули</h2>
   <pre class="mermaid">
 flowchart TB
-    ROOT["orders — root pom"]
+    ROOT["orders"]
     COM["common"]
-    SVC["services — общие deps"]
+    SVC["services"]
+    LIB["lib"]
+    CSERV["common-services"]
 
     ROOT --> COM
     ROOT --> SVC
-
-    COM --> LIB["lib"]
-    COM --> CSERV["common-services"]
+    COM --> LIB
+    COM --> CSERV
     LIB --> DTO["dto"]
     LIB --> OUT["outbox"]
     CSERV --> GW["gateway"]
-    SVC --> MODS["inventory · order · payment · delivery · carrier"]
+    SVC --> INV["inventory"]
+    SVC --> ORD["order"]
+    SVC --> PAY["payment"]
   </pre>
 </body>
 </html>

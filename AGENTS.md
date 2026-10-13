@@ -145,10 +145,9 @@ Gateway routes (из `common/common-services/gateway/.../application.properties`
 
 | Сервис | Роль | Статусы / таблицы (целевые имена из дизайна) |
 |--------|------|-----------------------------------------------|
-| **Order** | создание заказа, статус саги | `CREATED` → `AWAITING_PAYMENT` → `CONFIRMED` / `CANCELLED`; после доставки (не сага) → `COMPLETED` |
+| **Order** | создание заказа, статус саги | `CREATED` → `AWAITING_PAYMENT` → `CONFIRMED` / `CANCELLED` |
 | **Inventory** | резерв товара | остаток + резервы; резерв откатывается при отмене |
 | **Payment** | списание | транзакции по `order_id` (`PENDING` / `SUCCESS` / `FAILED`) |
-| **Delivery** (позже) | отгрузки после `CONFIRMED` | свой топик `delivery-events`; Order только читает |
 
 ### Database-per-service
 
@@ -177,7 +176,6 @@ Gateway routes (из `common/common-services/gateway/.../application.properties`
 | `inventory-events` | Inventory (`OutBoxScheduler`) | Order (`order-service`) | `ReserveCreated`, `ReserveFailed`, `ReserveReverted` | — |
 | `payment-commands` | Order (`OutBoxScheduler`) | Payment (`payment-service`) | `CreatePaymentCommand` | — |
 | `payment-events` | Payment (`OutBoxScheduler`) | Order (`order-service`) | `PaymentCompleted` (`orderId`, `userId`, `paymentId`), `PaymentFailed` (`orderId`, `userId`, `reason`) | — |
-| `delivery-events` | Delivery (позже) | Order | — | «доставка завершена» → `COMPLETED` |
 
 Классы сообщений — `common/lib/dto`: `saga.events`, `saga.commands`. Enum топиков — `saga.entity.Topic` в `common/lib/outbox`.
 
@@ -201,8 +199,6 @@ Gateway routes (из `common/common-services/gateway/.../application.properties`
 4. Оплата успешна → `CONFIRMED`
 5. Оплата fail → компенсация: release резерва → `CANCELLED`
 6. Резерв fail → сразу `CANCELLED` (без оплаты)
-
-После саги (не шаг оркестратора): Delivery пишет в `delivery-events`, Order читает → `COMPLETED`.
 
 ---
 
@@ -266,7 +262,7 @@ Gateway routes (из `common/common-services/gateway/.../application.properties`
 
 **Шаг 7 Outbox — закрыт во всех сервисах (12.10):** `common/lib/outbox` (колонка `topic`, FQCN, релей без `if/else`). Postman happy-path + обе компенсации.
 
-**Нет / дальше:** `@Version` на `Item`; Testcontainers. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать). Resilience4j — буфер / фаза C (в pom нет).
+**Нет / дальше:** `@Version` на `Item`; Testcontainers. `common/web` — буфер после фазы A. Resilience4j — буфер / фаза C (в pom нет).
 
 **Локальный запуск (два режима, не смешивать порты):**
 - **IDEA (основной):** `docker compose up -d` → Kafka + kafka-ui + pgAdmin + demo-ui (без Postgres/apps). Приложения в IDEA; working dir = корень репо; `spring.docker.compose.profiles.active=db` поднимает только Postgres сервиса. Kafka: `localhost:9092`.

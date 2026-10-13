@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Поток сообщений: сага заказа</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+  </script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; max-width: 900px; color: #222; }
+    h1 { font-size: 1.25rem; }
+    h2 { margin-top: 2rem; font-size: 1.05rem; }
+    p.note { color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>Saga Orders — поток сообщений</h1>
+  <p class="note">Исходящие из сервисов идут через Outbox (та же TX, что бизнес), затем scheduler → Kafka. На схемах для ясности показан Kafka.</p>
+
+  <h2>Happy path → CONFIRMED</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    participant GW as Gateway
+    participant O as Order
+    participant K as Kafka
+    participant I as Inventory
+    participant P as Payment
+
+    GW->>O: POST /order
+    O->>O: CREATED
+    O->>K: OrderCreated + CreateReserveCommand
+    K->>I: CreateReserveCommand
+    I->>I: остаток + Reservation
+    I->>K: ReserveCreated
+    K->>O: ReserveCreated
+    O->>O: AWAITING_PAYMENT
+    O->>K: CreatePaymentCommand
+    K->>P: CreatePaymentCommand
+    P->>K: PaymentCompleted
+    K->>O: PaymentCompleted
+    O->>O: CONFIRMED
+    O->>K: OrderConfirmed
+  </pre>
+
+  <h2>Компенсация: резерв не прошёл</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    participant O as Order
+    participant K as Kafka
+    participant I as Inventory
+
+    O->>K: CreateReserveCommand
+    K->>I: CreateReserveCommand
+    I->>K: ReserveFailed
+    K->>O: ReserveFailed
+    O->>O: CANCELLED
+    O->>K: OrderCancelled
+    Note over O,I: оплату не запускаем
+  </pre>
+
+  <h2>Компенсация: оплата не прошла</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    participant O as Order
+    participant K as Kafka
+    participant I as Inventory
+    participant P as Payment
+
+    Note over O: статус AWAITING_PAYMENT, резерв есть
+    O->>K: CreatePaymentCommand
+    K->>P: CreatePaymentCommand
+    P->>K: PaymentFailed
+    K->>O: PaymentFailed
+    O->>K: RevertReserveCommand
+    K->>I: RevertReserveCommand
+    I->>I: вернуть остаток
+    I->>K: ReserveReverted
+    K->>O: ReserveReverted
+    O->>O: CANCELLED
+    O->>K: OrderCancelled
+  </pre>
+</body>
+</html>
