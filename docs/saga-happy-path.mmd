@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant GW as Gateway
+    participant O as Order
+    participant K as Kafka
+    participant I as Inventory
+    participant P as Payment
+    GW->>O: POST /order
+    O->>O: CREATED
+    O->>K: CreateReserveCommand
+    K->>I: CreateReserveCommand
+    I->>K: ReserveCreated
+    K->>O: ReserveCreated
+    O->>O: AWAITING_PAYMENT
+    O->>K: CreatePaymentCommand
+    K->>P: CreatePaymentCommand
+    P->>K: PaymentCompleted
+    K->>O: PaymentCompleted
+    O->>O: CONFIRMED
