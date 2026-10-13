@@ -38,3 +38,11 @@ build/
 ### Demo UI (Vite) ###
 demo-ui/node_modules/
 demo-ui/dist/
+
+### Local env / logs / OS ###
+.env
+.env.*
+!.env.example
+*.log
+Thumbs.db
+.DS_Store
