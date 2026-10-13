@@ -39,6 +39,10 @@ build/
 demo-ui/node_modules/
 demo-ui/dist/
 
+### Local agent context (not in the public repo) ###
+AGENTS.md
+.cursor/rules/
+
 ### Local env / logs / OS ###
 .env
 .env.*

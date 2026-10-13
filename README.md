@@ -6,7 +6,7 @@
 
 ## Стек
 
-Java 21, Spring Boot 4.1.1, Spring Cloud Gateway, Apache Kafka, PostgreSQL, Liquibase, Maven (несколько модулей), MapStruct, Docker Compose, Testcontainers. Фронт — Vite.
+Java 21, Spring Boot 4.1.1, Spring Cloud Gateway, Apache Kafka, PostgreSQL, Liquibase, Maven (несколько модулей), MapStruct, Docker Compose. Фронт — Vite.
 
 ## Архитектура
 
@@ -19,7 +19,7 @@ Java 21, Spring Boot 4.1.1, Spring Cloud Gateway, Apache Kafka, PostgreSQL, Liqu
 3. `CONFIRMED` — оплата прошла
 4. `CANCELLED` — не хватило товара (оплату не запускали) или оплата не прошла (резерв сняли)
 
-Прочие особенности: своя база на сервис; исходящие сообщения — через таблицу `outbox` в той же транзакции, что изменение данных; оптимистичная блокировка остатка на складе (`@Version`).
+Прочие особенности: своя база на сервис; исходящие сообщения — через таблицу `outbox` в той же транзакции, что изменение данных; оптимистичная блокировка остатка на складе (`@Version`) — TODO, в работе.
 
 ![Успешный путь саги](docs/saga-happy-path.svg)
 
@@ -46,7 +46,7 @@ Java 21, Spring Boot 4.1.1, Spring Cloud Gateway, Apache Kafka, PostgreSQL, Liqu
 Поэтому потребители не должны выполнять побочный эффект дважды:
 
 - оплата — одна запись на `order_id`; повтор команды возвращает тот же исход;
-- склад — уникальность резерва `(order_id, item_id)`; повторный разбор команды как у оплаты не сделан: повтор может снова уменьшить остаток, пока не упрётся в unique.
+- склад — UNIQUE `(order_id, item_id)` на резерве: повторный insert падает, вся транзакция вместе с уменьшением остатка откатывается. Тихого «нашли резерв — ничего не делаем», как у оплаты, нет.
 
 Поллер читает пачку `NEW` без `FOR UPDATE SKIP LOCKED`. Два экземпляра сервиса могут взять одну строку; для одного локального процесса это не проблема.
 
@@ -82,60 +82,17 @@ docker compose up -d
 | Фронт (Vite) | 5173 |
 | Postgres order / payment / inventory | 5433 / 5434 / 5435 |
 
-Фронт: http://localhost:5173. Запросы — на http://localhost:8081.
+## Демо
 
-Успешный путь → `CONFIRMED`:
+Открыть http://localhost:5173 и нажать одну из трёх кнопок:
 
-```http
-POST http://localhost:8081/order
-Content-Type: application/json
+- успешный заказ → `CONFIRMED`
+- отказ резерва (нехватка товара) → `CANCELLED`
+- отказ оплаты → снять резерв → `CANCELLED`
 
-{
-  "userId": 1013,
-  "cost": 1149.00,
-  "orderItems": [
-    { "itemId": 1, "amount": 1, "cost": 999.00 },
-    { "itemId": 2, "amount": 1, "cost": 150.00 }
-  ]
-}
-```
+Статус на экране обновляется сам, пока не станет конечным.
 
-Дальше `GET http://localhost:8081/order/{id}` — статус станет `CONFIRMED`.
+## TODO
 
-Нехватка на складе → `CANCELLED` (в сидах у товара `1` остаток 50, `amount: 999`):
-
-```http
-POST http://localhost:8081/order
-Content-Type: application/json
-
-{
-  "userId": 1013,
-  "cost": 999.00,
-  "orderItems": [
-    { "itemId": 1, "amount": 999, "cost": 999.00 }
-  ]
-}
-```
-
-Отказ оплаты → снять резерв → `CANCELLED` (`userId` **9999**):
-
-```http
-POST http://localhost:8081/order
-Content-Type: application/json
-
-{
-  "userId": 9999,
-  "cost": 1149.00,
-  "orderItems": [
-    { "itemId": 1, "amount": 1, "cost": 999.00 },
-    { "itemId": 2, "amount": 1, "cost": 150.00 }
-  ]
-}
-```
-
-## Работа с AI
-
-Агент помогает планировать и объяснять подход. Код саги пишется вручную.
-
-- Правила Cursor: [.cursor/rules](.cursor/rules)
-- Контекст репозитория для агента: [AGENTS.md](AGENTS.md)
+- `@Version` на остатке склада — в работе.
+- Описание тестов — после реализации: Postman (сценарии саги) + unit + Testcontainers.
