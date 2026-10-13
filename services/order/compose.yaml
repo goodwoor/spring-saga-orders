@@ -1,6 +1,6 @@
 services:
 
-  # ==== Инфраструктура — поднимается всегда, без профиля ====
+  # ==== БД — profile db (IDEA / full docker); не стартует при голом docker compose up ====
   postgres-order:
     image: postgres:16
     ports: [ "5433:5432" ]
@@ -10,12 +10,27 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d orders" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles: [ "db" ]
 
-  # ==== Сервисы-приложения — только при --profile apps ====
+  # ==== Приложения — только при --profile apps ====
   order:
     image: saga/order:0.0.1-SNAPSHOT
     ports:
       - "8083:8083"
+    environment:
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/orders
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     depends_on:
-      - postgres-order
-    profiles: ["apps"]
+      postgres-order:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    profiles: [ "apps" ]

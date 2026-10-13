@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset goodwoor:2
+--changeset goodwoor:2 logicalFilePath:db/changelog/migrations/02-seed-data.sql
 INSERT INTO payments (id, user_id, order_id, status, status_changed_date, created_at, cost) VALUES
     (1,  101, 1,  'SUCCESS', TIMESTAMPTZ '2026-09-01 10:12:00+00', TIMESTAMPTZ '2026-09-01 10:05:00+00', 1599.00),
     (2,  102, 2,  'SUCCESS', TIMESTAMPTZ '2026-09-02 11:18:00+00', TIMESTAMPTZ '2026-09-02 11:10:00+00',  349.50),

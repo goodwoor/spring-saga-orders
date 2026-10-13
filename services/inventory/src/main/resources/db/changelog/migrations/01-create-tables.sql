@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset goodwoor:1
+--changeset goodwoor:1 logicalFilePath:db/changelog/migrations/01-create-tables.sql
 CREATE TABLE items (
     id BIGSERIAL PRIMARY KEY,
     cost NUMERIC(19, 2) NOT NULL,

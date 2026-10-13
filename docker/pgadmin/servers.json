@@ -1,0 +1,37 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "orders",
+      "Group": "Servers",
+      "Host": "host.docker.internal",
+      "Port": 5433,
+      "MaintenanceDB": "orders",
+      "Username": "postgres",
+      "PassFile": "/var/lib/pgadmin/pgpass",
+      "SSLMode": "prefer",
+      "Favorite": false
+    },
+    "2": {
+      "Name": "payments",
+      "Group": "Servers",
+      "Host": "host.docker.internal",
+      "Port": 5434,
+      "MaintenanceDB": "payments",
+      "Username": "postgres",
+      "PassFile": "/var/lib/pgadmin/pgpass",
+      "SSLMode": "prefer",
+      "Favorite": false
+    },
+    "3": {
+      "Name": "inventory",
+      "Group": "Servers",
+      "Host": "host.docker.internal",
+      "Port": 5435,
+      "MaintenanceDB": "inventory",
+      "Username": "postgres",
+      "PassFile": "/var/lib/pgadmin/pgpass",
+      "SSLMode": "prefer",
+      "Favorite": false
+    }
+  }
+}

@@ -1,0 +1,3 @@
+host.docker.internal:5433:orders:postgres:postgres
+host.docker.internal:5434:payments:postgres:postgres
+host.docker.internal:5435:inventory:postgres:postgres

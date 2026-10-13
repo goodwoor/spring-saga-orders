@@ -1,7 +1,7 @@
 # AGENTS.md — saga-orders
 
 Контекст для работы над этим репозиторием (агенты и разработчики).  
-Обновлено: 12 октября 2026.
+Обновлено: 13 октября 2026.
 
 Полный план подготовки (вне репо): `C:\Users\GoodWoor\Desktop\java\собесы\актуальный план (сентябрь 2026).md`
 
@@ -16,8 +16,12 @@ Maven multi-module (`groupId: saga`, root `artifactId: orders`, Java 21, Spring 
 ```
 saga-orders/
 ├── pom.xml                          # root: modules common + services; devtools
-├── compose.yaml                     # общий Kafka (localhost:9092, KRaft; RF=1 на одном брокере)
+├── compose.yaml                     # include сервисов; Kafka + UI + profiles db/apps
+├── README.md                        # краткий запуск (IDEA / full Docker)
 ├── AGENTS.md                        # этот файл — контекст и карта
+├── scripts/                         # docker-up.ps1, to-idea.ps1, to-docker.ps1
+├── docker/pgadmin/                  # servers.json + pgpass (3 БД)
+├── demo-ui/                         # Vite demo (:5173), в compose без profile
 ├── .cursor/rules/                   # правила Cursor (ask-before-edits и др.)
 ├── .mvn/wrapper/                    # Maven Wrapper
 │
@@ -28,7 +32,7 @@ saga-orders/
 │   │   └── outbox/                  # JAR: OutBoxProducer + OutBoxScheduler + сущность
 │   └── common-services/             # запускаемые общие сервисы (не домен)
 │       └── gateway/                 # Spring Cloud Gateway (WebMVC)
-│           ├── compose.yaml
+│           ├── compose.yaml         # profile apps
 │           └── src/main/
 │               ├── java/saga/ApiGateway.java
 │               └── resources/application.properties   # routes → сервисы
@@ -36,9 +40,9 @@ saga-orders/
 └── services/                        # packaging pom + общие deps сервисов
     ├── pom.xml                      # JPA, Liquibase, Kafka, Web, MapStruct 1.6.3;
     │                                # spring-cloud BOM 2025.1.3; deps: dto + outbox
-    ├── order/                       # :8083  POST /order → БД + outbox → Kafka
-    ├── inventory/                   # :8082  GET /inventory; резерв → outbox
-    └── payment/                     # :8084  GET /payment; оплата → outbox
+    ├── order/                       # :8083; compose: postgres profile db, app profile apps
+    ├── inventory/                   # :8082; то же
+    └── payment/                     # :8084; то же
 ```
 
 Типичный слой сервиса (пакеты пока `saga.*`, цель — `saga.{order,inventory,payment}`):
@@ -60,9 +64,12 @@ repository/      # только inventory; order/payment — репозитор�
 | Inventory | **8082** (`/inventory/**`) | **5435** | `inventory` |
 | Order | **8083** (`/order/**`) | **5433** | `orders` |
 | Payment | **8084** (`/payment/**`) | **5434** | `payments` |
-| Kafka | — | broker **9092** | — |
+| Kafka | — | broker **9092** (host); внутри Docker-сети **kafka:29092** | — |
+| Kafka UI | **8090** | — | — |
+| pgAdmin | **5050** | — | login `admin@example.com` / `admin` |
+| demo-ui | **5173** | — | → Gateway `:8081` |
 
-Gateway routes (из `common/common-services/gateway/.../application.properties`): `/inventory/**` → 8082, `/order/**` → 8083, `/payment/**` → 8084.
+Gateway routes (из `common/common-services/gateway/.../application.properties`): `/inventory/**` → 8082, `/order/**` → 8083, `/payment/**` → 8084 (в Docker — hostname сервиса через env `*_URI`).
 
 ### Схемы БД (Liquibase)
 
@@ -87,8 +94,10 @@ Gateway routes (из `common/common-services/gateway/.../application.properties`
 | Тема | Путь |
 |------|------|
 | Root / modules | `pom.xml`, `common/pom.xml`, `services/pom.xml` |
-| Kafka infra | `compose.yaml` (KRaft; `KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1`) |
-| Postgres per service | `services/{order,inventory,payment}/compose.yaml` (Kafka сюда не входит — корневой compose) |
+| Запуск | `README.md`, `scripts/to-idea.ps1`, `scripts/to-docker.ps1`, `scripts/docker-up.ps1` |
+| Compose | `compose.yaml` (`include` + Kafka dual-listener + kafka-ui + pgadmin + demo-ui) |
+| Postgres / apps | `services/{order,inventory,payment}/compose.yaml` — profile **`db`** (Postgres), **`apps`** (образы) |
+| Gateway apps | `common/common-services/gateway/compose.yaml` — profile **`apps`** |
 | Миграции | `services/*/src/main/resources/db/changelog/migrations/01-create-tables.sql` |
 | Сиды | `…/migrations/02-seed-data.sql` |
 | Inventory/Payment HTTP | `GET /inventory`, `GET /payment` → Service → Mapper → репозиторий; DTO-record |
@@ -257,9 +266,13 @@ Gateway routes (из `common/common-services/gateway/.../application.properties`
 
 **Шаг 7 Outbox — закрыт во всех сервисах (12.10):** `common/lib/outbox` (колонка `topic`, FQCN, релей без `if/else`). Postman happy-path + обе компенсации.
 
-**Нет / дальше:** `@Version` на `Item`; Testcontainers; README. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать). Resilience4j — буфер / фаза C (в pom нет).
+**Нет / дальше:** `@Version` на `Item`; Testcontainers. `common/web` — буфер после фазы A. Delivery — вне текущей фазы (задел `CreateDeliveryCommand` не трогать). Resilience4j — буфер / фаза C (в pom нет).
 
-**Локально Kafka:** брокер только в корневом `compose.yaml`. Compose Order поднимает Postgres, не Kafka — без `docker compose -f compose.yaml up -d` клиент крутит reconnect на `localhost:9092`.
+**Локальный запуск (два режима, не смешивать порты):**
+- **IDEA (основной):** `docker compose up -d` → Kafka + kafka-ui + pgAdmin + demo-ui (без Postgres/apps). Приложения в IDEA; working dir = корень репо; `spring.docker.compose.profiles.active=db` поднимает только Postgres сервиса. Kafka: `localhost:9092`.
+- **Full Docker:** `.\scripts\to-docker.ps1` или `docker compose --profile db --profile apps up -d` (нужны образы `saga/*`). Env в compose: datasource + `kafka:29092`, `SPRING_DOCKER_COMPOSE_ENABLED=false`. Переключение: `.\scripts\to-idea.ps1` / `.\scripts\to-docker.ps1`. Первая сборка: `.\scripts\docker-up.ps1`.
+- Корневой `compose.yaml` делает `include` сервисов/gateway; Postgres **не** стартует без profile `db` (иначе конфликт с IDEA на 5433/4/5).
+- Liquibase SQL: `logicalFilePath:db/changelog/migrations/...` — один и тот же id changeset в IDEA и в fat-jar (иначе Docker ломает миграции на существующих `data/`).
 
 **Пакеты:** `saga` + `saga.entity` / `saga.dto` / `saga.repository`. Переименование в `saga.order` и т.п. — осознанно пропущено (косметика, не в scope фазы).
 
@@ -273,7 +286,7 @@ Gateway routes (из `common/common-services/gateway/.../application.properties`
 
 Порядок: миграции → CRUD → Kafka → **happy-path** → компенсация (2 ветки) → идемпотентность Payment → Outbox → `@Version` + `EXPLAIN` → Testcontainers (2 теста) → README.
 
-**Сейчас:** шаг 8 — `@Version` на `Item` + `EXPLAIN ANALYZE`. Шаг 7 закрыт везде (ретрай Payment — на Testcontainers).
+**Сейчас:** шаг 8 — `@Version` на `Item` + `EXPLAIN ANALYZE`. Шаг 7 закрыт везде (ретрай Payment — на Testcontainers). README с запуском и Docker-инфра (UI, profiles `db`/`apps`) — есть.
 
 ---
 

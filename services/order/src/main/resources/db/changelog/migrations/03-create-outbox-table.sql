@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset goodwoor:3
+--changeset goodwoor:3 logicalFilePath:db/changelog/migrations/03-create-outbox-table.sql
 CREATE TABLE outbox (
     id BIGSERIAL PRIMARY KEY,
     message_key VARCHAR(50) NOT NULL,

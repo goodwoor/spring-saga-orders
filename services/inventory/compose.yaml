@@ -1,6 +1,6 @@
 services:
 
-  # ==== Инфраструктура — поднимается всегда, без профиля ====
+  # ==== БД — profile db (IDEA / full docker); не стартует при голом docker compose up ====
   postgres-inventory:
     image: postgres:16
     ports: [ "5435:5432" ]
@@ -10,13 +10,27 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d inventory" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    profiles: [ "db" ]
 
-  # ==== Сервисы-приложения — только при --profile apps ====
+  # ==== Приложения — только при --profile apps ====
   inventory:
     image: saga/inventory:0.0.1-SNAPSHOT
     ports:
       - "8082:8082"
+    environment:
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/inventory
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     depends_on:
-      - postgres-inventory
-      - kafka
-    profiles: ["apps"]
+      postgres-inventory:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    profiles: [ "apps" ]

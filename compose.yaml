@@ -1,3 +1,9 @@
+include:
+  - path: services/order/compose.yaml
+  - path: services/inventory/compose.yaml
+  - path: services/payment/compose.yaml
+  - path: common/common-services/gateway/compose.yaml
+
 services:
 
   # ==== Инфраструктура — поднимается всегда, без профиля ====
@@ -7,17 +13,46 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
 
-  # UI для демо саги (Vite :5173 → Gateway на хосте :8081). Профиль demo-ui — не мешает только Kafka.
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      - kafka
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    volumes:
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./docker/pgadmin/pgpass:/pgpass-src:ro
+      - pgadmin_data:/var/lib/pgadmin
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: >
+      /bin/sh -c "cp /pgpass-src /var/lib/pgadmin/pgpass
+      && chmod 600 /var/lib/pgadmin/pgpass
+      && /entrypoint.sh"
+
+  # UI для демо саги (Vite :5173 → Gateway на хосте :8081)
   demo-ui:
     image: node:22-alpine
     working_dir: /app
@@ -33,8 +68,7 @@ services:
     command: sh -c "npm ci || npm install; npm run dev -- --host 0.0.0.0"
     depends_on:
       - kafka
-    profiles:
-      - demo-ui
 
 volumes:
   demo_ui_node_modules:
+  pgadmin_data:

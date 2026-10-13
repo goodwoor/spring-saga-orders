@@ -1,6 +1,6 @@
 --liquibase formatted sql
 
---changeset goodwoor:2
+--changeset goodwoor:2 logicalFilePath:db/changelog/migrations/02-seed-data.sql
 INSERT INTO items (id, cost, amount, name, description) VALUES
     (1,   999.00,  50, 'Wireless Headphones',   'Bluetooth over-ear headphones with noise cancellation'),
     (2,   150.00, 120, 'USB-C Cable',            '2m braided USB-C charging cable'),
