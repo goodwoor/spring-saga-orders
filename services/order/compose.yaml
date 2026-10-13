@@ -18,5 +18,4 @@ services:
       - "8083:8083"
     depends_on:
       - postgres-order
-      - kafka
     profiles: ["apps"]

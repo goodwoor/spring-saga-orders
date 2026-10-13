@@ -34,3 +34,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Demo UI (Vite) ###
+demo-ui/node_modules/
+demo-ui/dist/

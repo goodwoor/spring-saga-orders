@@ -16,3 +16,25 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+  # UI для демо саги (Vite :5173 → Gateway на хосте :8081). Профиль demo-ui — не мешает только Kafka.
+  demo-ui:
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./demo-ui:/app
+      - demo_ui_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_GATEWAY_TARGET: http://host.docker.internal:8081
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: sh -c "npm ci || npm install; npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - kafka
+    profiles:
+      - demo-ui
+
+volumes:
+  demo_ui_node_modules:
