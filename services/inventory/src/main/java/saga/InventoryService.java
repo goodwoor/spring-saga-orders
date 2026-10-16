@@ -77,6 +77,17 @@ public class InventoryService {
     private void reserveItems(CreateReserveCommand command)
             throws ItemsNotFoundException, NotEnoughAmountException
     {
+        List<Reservation> oldReservations = reservationRepository.findAllByOrderId(command.orderId());
+
+        if (!oldReservations.isEmpty()) {
+            log.info(
+                    "Reservations already exists, order id: %s".formatted(
+                            command.orderId()
+                    )
+            );
+            return;
+        }
+
         List<Long> itemsIds = command.orderItems().stream()
                 .map(OrderLine::itemId)
                 .toList();
