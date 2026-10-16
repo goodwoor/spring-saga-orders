@@ -19,11 +19,13 @@ Java 21, Spring Boot 4.1.1, Spring Cloud Gateway, Apache Kafka, PostgreSQL, Liqu
 3. `CONFIRMED` — оплата прошла
 4. `CANCELLED` — не хватило товара (оплату не запускали) или оплата не прошла (резерв сняли)
 
+[Схема допустимых переходов статусов](docs/message-flow-order-saga.html#status-machine). Из `CONFIRMED` и `CANCELLED` никуда.
+
 Прочие особенности: своя база на сервис; исходящие сообщения — через таблицу `outbox` в той же транзакции, что изменение данных; оптимистичная блокировка остатка на складе (`@Version`) — TODO, в работе.
 
 ![Успешный путь саги](docs/saga-happy-path.svg)
 
-Отказ резерва: `ReserveFailed` → `CANCELLED`, оплату не запускаем. Отказ оплаты: `PaymentFailed` → `RevertReserveCommand` → `ReserveReverted` → `CANCELLED`.
+Отказ резерва: `ReserveFailed` → `CANCELLED`, оплату не запускаем. Отказ оплаты: `PaymentFailed` → `RevertReserveCommand` → `ReserveReverted` → `CANCELLED`. Если откат резерва не вышел (исчерпаны попытки по версии): `RevertReserveFailed` — статус заказа не меняем, товар на складе остаётся зарезервирован.
 
 Те же схемы в HTML: [поток саги](docs/message-flow-order-saga.html), [слои и модули](docs/infrastructure-layers-modules-and-runtime.html).
 

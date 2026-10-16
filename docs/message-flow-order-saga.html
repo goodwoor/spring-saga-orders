@@ -16,7 +16,6 @@
 </head>
 <body>
   <h1>Saga Orders — поток сообщений</h1>
-  <p class="note">Исходящие из сервисов идут через Outbox (та же TX, что бизнес), затем scheduler → Kafka. На схемах для ясности показан Kafka.</p>
 
   <h2>Happy path → CONFIRMED</h2>
   <pre class="mermaid">
@@ -79,6 +78,31 @@ sequenceDiagram
     K->>O: ReserveReverted
     O->>O: CANCELLED
     O->>K: OrderCancelled
+  </pre>
+
+  <h2>Откат резерва не прошёл</h2>
+  <pre class="mermaid">
+sequenceDiagram
+    participant O as Order
+    participant K as Kafka
+    participant I as Inventory
+
+    Note over O: AWAITING_PAYMENT, оплата уже FAIL, резерв на складе
+    O->>K: RevertReserveCommand
+    K->>I: RevertReserveCommand
+    I->>K: RevertReserveFailed
+    K->>O: RevertReserveFailed
+    Note over O,I: статус не меняем, товар остаётся зарезервирован
+  </pre>
+
+  <h2 id="status-machine">Схема допустимых переходов статусов</h2>
+  <pre class="mermaid">
+stateDiagram-v2
+    [*] --> CREATED
+    CREATED --> AWAITING_PAYMENT: ReserveCreated
+    CREATED --> CANCELLED: ReserveFailed
+    AWAITING_PAYMENT --> CONFIRMED: PaymentCompleted
+    AWAITING_PAYMENT --> CANCELLED: ReserveReverted
   </pre>
 </body>
 </html>

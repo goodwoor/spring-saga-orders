@@ -80,7 +80,7 @@ public class OrderSaga {
     public void onReserveFailed(ReserveFailed event) {
         log.info("Received event: reserve failed: {}", event);
 
-        Boolean validateResult = orderWriter.validateAndSetCancelledStatus(event.orderId());
+        Boolean validateResult = orderWriter.validateAndSetCancelledAfterReserveFailed(event.orderId());
         if (validateResult) {
             OrderCancelled orderCancelled = mapper.toOrderCancelled(event);
             sendOrderCancelledEvent(orderCancelled);
@@ -113,6 +113,11 @@ public class OrderSaga {
     @Transactional
     public void onPaymentFailed(PaymentFailed event) {
         log.info("Received event: payment failed: {}", event);
+
+        if (!orderWriter.canRevertReserve(event.orderId())) {
+            return;
+        }
+
         RevertReserveCommand revertReserveCommand = mapper.toRevertReservationCommand(event);
         sendRevertReservationCommand(revertReserveCommand);
     }
@@ -127,7 +132,7 @@ public class OrderSaga {
     public void onReserveReverted(ReserveReverted event) {
         log.info("Received event: reserve reverted: {}", event);
 
-        Boolean validateResult = orderWriter.validateAndSetCancelledStatus(event.orderId());
+        Boolean validateResult = orderWriter.validateAndSetCancelledAfterRevert(event.orderId());
         if (validateResult) {
             OrderCancelled orderCancelled = mapper.toOrderCancelled(event);
             sendOrderCancelledEvent(orderCancelled);

@@ -51,31 +51,27 @@ public class OrderWriter {
     }
 
     public Boolean validateAndSetAwaitingPaymentStatus(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElse(null);
-
-        if (order == null) {
-            log.warn("Not found order %s".formatted(orderId));
-            return false;
-        }
-
-        if (order.getStatus() == OrderStatus.CONFIRMED || order.getStatus() == OrderStatus.CANCELLED)
-        {
-            log.warn("Order %s already have status: %s".formatted(orderId, order.getStatus()));
-            return false;
-        }
-
-        if (order.getStatus() == OrderStatus.AWAITING_PAYMENT)
-        {
-            log.info("Order %s already have status: %s".formatted(orderId, order.getStatus()));
-            return true;
-        }
-
-        order.setStatus(OrderStatus.AWAITING_PAYMENT);
-        return true;
+        return move(orderId, OrderStatus.CREATED, OrderStatus.AWAITING_PAYMENT);
     }
 
     public Boolean validateAndSetConfirmedStatus(Long orderId) {
+        return move(orderId, OrderStatus.AWAITING_PAYMENT, OrderStatus.CONFIRMED);
+    }
+
+    public Boolean validateAndSetCancelledAfterReserveFailed(Long orderId) {
+        return move(orderId, OrderStatus.CREATED, OrderStatus.CANCELLED);
+    }
+
+    public Boolean validateAndSetCancelledAfterRevert(Long orderId) {
+        return move(orderId, OrderStatus.AWAITING_PAYMENT, OrderStatus.CANCELLED);
+    }
+
+    public Boolean canRevertReserve(Long orderId) {
+        return isStatus(orderId, OrderStatus.AWAITING_PAYMENT);
+    }
+
+    private Boolean isStatus(Long orderId, OrderStatus expected)
+    {
         Order order = orderRepository.findById(orderId)
                 .orElse(null);
 
@@ -84,21 +80,23 @@ public class OrderWriter {
             return false;
         }
 
-        if (order.getStatus() == OrderStatus.CONFIRMED) {
-            log.info("Order %s already have status: %s".formatted(orderId, order.getStatus()));
-            return true;
-        }
-
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            log.warn("Order %s already have status: %s".formatted(orderId, order.getStatus()));
+        if (order.getStatus() != expected)
+        {
+            log.warn(
+                    "Order %s has status: %s, expected: %s".formatted(
+                            orderId,
+                            order.getStatus(),
+                            expected
+                    )
+            );
             return false;
         }
 
-        order.setStatus(OrderStatus.CONFIRMED);
         return true;
     }
 
-    public Boolean validateAndSetCancelledStatus(Long orderId) {
+    private Boolean move(Long orderId, OrderStatus expectedFrom, OrderStatus to)
+    {
         Order order = orderRepository.findById(orderId)
                 .orElse(null);
 
@@ -107,12 +105,32 @@ public class OrderWriter {
             return false;
         }
 
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            log.info("Order %s already have status: %s".formatted(orderId, order.getStatus()));
+        OrderStatus current = order.getStatus();
+
+        if (current == to) {
+            log.info("Order %s already have status: %s".formatted(orderId, current));
             return false;
         }
 
-        order.setStatus(OrderStatus.CANCELLED);
+        if (current != expectedFrom)
+        {
+            log.warn(
+                    "Illegal status move, order %s: %s -> %s, expected from %s".formatted(
+                            orderId,
+                            current,
+                            to,
+                            expectedFrom
+                    )
+            );
+            return false;
+        }
+
+        if (!current.canGoTo(to)) {
+            log.warn("Illegal status move, order %s: %s -> %s".formatted(orderId, current, to));
+            return false;
+        }
+
+        order.setStatus(to);
         return true;
     }
 }
