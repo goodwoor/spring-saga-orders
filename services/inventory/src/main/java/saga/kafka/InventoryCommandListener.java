@@ -1,21 +1,19 @@
 package saga.kafka;
 
-import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.kafka.annotation.KafkaHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import saga.InventoryMapper;
 import saga.InventoryService;
 import saga.commands.CreateReserveCommand;
 import saga.commands.RevertReserveCommand;
 import saga.entity.Topic;
-import saga.events.inventory.ReserveCreated;
 import saga.events.inventory.ReserveFailed;
 import saga.events.inventory.ReserveFailedReason;
-import saga.events.inventory.ReserveReverted;
+import saga.events.inventory.RevertReserveFailed;
 
 @Component
 @KafkaListener(topics = "inventory-commands", groupId = "inventory-service")
@@ -23,27 +21,23 @@ public class InventoryCommandListener {
     private static final Logger log = LoggerFactory.getLogger(InventoryCommandListener.class);
     private final InventoryService service;
     private final OutBoxProducer producer;
-    private final InventoryMapper mapper;
 
     @Autowired
     InventoryCommandListener(
             InventoryService service,
-            OutBoxProducer producer,
-            InventoryMapper mapper
+            OutBoxProducer producer
     ) {
         this.service = service;
         this.producer = producer;
-        this.mapper = mapper;
     }
 
     @KafkaHandler
-    @Transactional
     public void onReserveCommand(CreateReserveCommand command) {
         log.info("Received command: create reserve: {}", command.orderId());
         ReserveFailed failedEvent = null;
 
         try {
-            service.reserveItems(command);
+            service.reserveAndSendEvent(command);
         } catch (NotEnoughAmountException exception) {
             failedEvent = new ReserveFailed(
                     command.orderId(),
@@ -54,25 +48,37 @@ public class InventoryCommandListener {
                     command.orderId(),
                     ReserveFailedReason.ITEMS_NOT_FOUND
             );
+        } catch (OptimisticLockingFailureException exception) {
+            failedEvent = new ReserveFailed(
+                    command.orderId(),
+                    ReserveFailedReason.TOO_MANY_ATTEMPTS
+            );
         }
 
         if (failedEvent != null) {
             log.warn("Reserve failed, order id: {}, reason: {}", command.orderId(), failedEvent.reason());
             producer.send(Topic.INVENTORY_EVENTS, failedEvent.orderId().toString(), failedEvent);
-            return;
         }
-
-        ReserveCreated reserveCreatedEvent = mapper.toReserveCreated(command);
-        producer.send(Topic.INVENTORY_EVENTS, command.orderId().toString(), reserveCreatedEvent);
     }
 
     @KafkaHandler
-    @Transactional
     public void onRevertReserveCommand(RevertReserveCommand command) {
         log.info("Received command: revert reserve: {}", command.orderId());
-        service.revertReserve(command.orderId());
-        ReserveReverted reserveCreatedEvent = mapper.toReserveReverted(command);
-        producer.send(Topic.INVENTORY_EVENTS, command.orderId().toString(), reserveCreatedEvent);
+        RevertReserveFailed failedEvent = null;
+
+        try {
+            service.revertReserveAndSendEvent(command);
+        } catch (OptimisticLockingFailureException exception) {
+            failedEvent = new RevertReserveFailed(
+                    command.orderId(),
+                    ReserveFailedReason.TOO_MANY_ATTEMPTS
+            );
+        }
+
+        if (failedEvent != null) {
+            log.warn("Revert reserve failed, order id: {}, reason: {}", command.orderId(), failedEvent.reason());
+            producer.send(Topic.INVENTORY_EVENTS, failedEvent.orderId().toString(), failedEvent);
+        }
     }
 
     @KafkaHandler(isDefault = true)

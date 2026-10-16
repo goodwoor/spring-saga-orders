@@ -16,6 +16,9 @@ services/*/data/
 .springBeans
 .sts4-cache
 
+### Postman / IntelliJ HTTP Client (local workspace index) ###
+.postman/
+
 ### IntelliJ IDEA ###
 .idea
 *.iws

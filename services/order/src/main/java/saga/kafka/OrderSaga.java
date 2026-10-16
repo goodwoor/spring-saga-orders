@@ -15,6 +15,7 @@ import saga.commands.RevertReserveCommand;
 import saga.entity.Order;
 import saga.entity.Topic;
 import saga.events.inventory.ReserveReverted;
+import saga.events.inventory.RevertReserveFailed;
 import saga.events.order.OrderCancelled;
 import saga.events.order.OrderConfirmed;
 import saga.events.order.OrderCreated;
@@ -131,6 +132,15 @@ public class OrderSaga {
             OrderCancelled orderCancelled = mapper.toOrderCancelled(event);
             sendOrderCancelledEvent(orderCancelled);
         }
+    }
+
+    @KafkaHandler
+    public void onRevertReserveFailed(RevertReserveFailed event) {
+        log.warn(
+                "Received event: revert reserve failed: {}, reason: {}. Status not changed, reserve still held",
+                event.orderId(),
+                event.reason()
+        );
     }
 
     @KafkaHandler(isDefault = true)
