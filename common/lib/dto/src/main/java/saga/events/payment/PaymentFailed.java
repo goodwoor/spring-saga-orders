@@ -4,4 +4,5 @@ public record PaymentFailed(
         Long orderId,
         Long userId,
         PaymentFailedReason reason
-) {}
+)
+{}

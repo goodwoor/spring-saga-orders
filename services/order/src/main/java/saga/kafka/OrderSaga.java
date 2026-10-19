@@ -44,8 +44,7 @@ public class OrderSaga {
         this.mapper = mapper;
     }
 
-    public void sendOrderCreatedEvent(Order savedOrder)
-    {
+    public void sendOrderCreatedEvent(Order savedOrder) {
         OrderCreated event = mapper.toOrderCreated(savedOrder);
         log.info("Send event: order created {}", savedOrder.getId());
         outBoxProducer.send(Topic.ORDER_EVENTS, savedOrder.getId().toString(), event);

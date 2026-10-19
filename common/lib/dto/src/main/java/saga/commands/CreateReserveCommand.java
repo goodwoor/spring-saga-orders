@@ -10,4 +10,5 @@ public record CreateReserveCommand(
         Long userId,
         List<OrderLine> orderItems,
         BigDecimal cost
-) {}
+)
+{}

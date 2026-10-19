@@ -8,4 +8,5 @@ public record ItemResponse(
         Integer amount,
         String name,
         String description
-) {}
+)
+{}

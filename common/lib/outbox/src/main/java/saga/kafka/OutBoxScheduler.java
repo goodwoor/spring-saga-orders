@@ -29,10 +29,8 @@ public class OutBoxScheduler {
         this.mapper = mapper;
     }
 
-    //todo: пул работает в одном потоке, в будущем можно попробовать распараллелить
     @Scheduled(fixedDelayString = "1000")
-    public void sendOutBoxMessages()
-    {
+    public void sendOutBoxMessages() {
         List<OutBoxItem> messagesForSend = outBoxRepository.findTop100ByStatusOrderByIdAsc(
                 OutBoxItemStatus.NEW
         );

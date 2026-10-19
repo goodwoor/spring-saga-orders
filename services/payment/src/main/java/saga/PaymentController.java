@@ -22,8 +22,7 @@ public class PaymentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<PaymentResponse>> getAllPayments()
-    {
+    public ResponseEntity<List<PaymentResponse>> getAllPayments() {
         List<PaymentResponse> response = paymentService.findAllPayments();
         return ResponseEntity.ok(response);
     }

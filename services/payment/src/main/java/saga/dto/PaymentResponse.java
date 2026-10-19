@@ -11,4 +11,5 @@ public record PaymentResponse (
         Instant statusChangedDate,
         Instant createdAt,
         BigDecimal cost
-) {}
+)
+{}

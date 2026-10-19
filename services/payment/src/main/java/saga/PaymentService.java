@@ -38,8 +38,7 @@ public class PaymentService {
         return paymentsDto;
     }
 
-    public Payment createPayment(CreatePaymentCommand command)
-    {
+    public Payment createPayment(CreatePaymentCommand command) {
         Instant now = Instant.now();
         Payment oldPayment = paymentRepository.findByOrderId(command.orderId()).orElse(null);
 

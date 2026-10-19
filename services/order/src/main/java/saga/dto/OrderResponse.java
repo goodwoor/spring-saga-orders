@@ -12,4 +12,5 @@ public record OrderResponse(
         String status,
         Instant statusChangedDate,
         Instant createdAt
-) {}
+)
+{}

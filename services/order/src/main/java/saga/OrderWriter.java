@@ -80,8 +80,7 @@ public class OrderWriter {
             return false;
         }
 
-        if (order.getStatus() != expected)
-        {
+        if (order.getStatus() != expected) {
             log.warn(
                     "Order %s has status: %s, expected: %s".formatted(
                             orderId,
@@ -112,8 +111,7 @@ public class OrderWriter {
             return false;
         }
 
-        if (current != expectedFrom)
-        {
+        if (current != expectedFrom) {
             log.warn(
                     "Illegal status move, order %s: %s -> %s, expected from %s".formatted(
                             orderId,

@@ -25,8 +25,7 @@ public class OutBoxProducer {
         this.mapper = mapper;
     }
 
-    public void send(Topic topic, String key, Object message)
-    {
+    public void send(Topic topic, String key, Object message) {
         String messageType = message.getClass().getName();
         OutBoxItem oldItem = outBoxRepository.findByMessageKeyAndMessageType(
                 key,

@@ -22,8 +22,7 @@ public class OrderController {
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getOrder(
             @PathVariable Long id
-    )
-    {
+    ) {
         OrderResponse response = orderService.findOrder(id);
 
         return response == null
@@ -32,8 +31,7 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<OrderResponse>> getAllOrders()
-    {
+    public ResponseEntity<List<OrderResponse>> getAllOrders() {
         List<OrderResponse> response = orderService.findAllOrdersWithItems();
         return ResponseEntity.ok(response);
     }
@@ -41,8 +39,7 @@ public class OrderController {
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(
             @RequestBody OrderCreateRequest request
-    )
-    {
+    ) {
         OrderResponse response = orderService.processCreateOrder(request);
         return ResponseEntity.created(URI.create("/order/" + response.id()))
                 .body(response);
