@@ -44,7 +44,7 @@ demo-ui/dist/
 
 ### Local agent context (not in the public repo) ###
 AGENTS.md
-.cursor/rules/
+.cursor/
 
 ### Local env / logs / OS ###
 .env

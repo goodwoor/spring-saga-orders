@@ -94,6 +94,16 @@ docker compose up -d
 
 Статус на экране обновляется сам, пока не станет конечным.
 
-## TODO
+## Тесты
 
-- Testcontainers: happy-path, компенсация, гонка резерва, автомат статусов.
+Критичные пути саги проверяются на PostgreSQL и Kafka из Testcontainers. Каждый сервис поднимается своим контекстом, чужой шаг приходит сообщением в брокер теста.
+
+| Путь | Тест |
+|------|------|
+| Заказ доходит до `CONFIRMED` | `OrderHappyPathTest` |
+| Отказ резерва и отказ оплаты, возврат остатка | `OrderCompensationTest`, `InventoryCompensationTest`, `PaymentFailureTest` |
+| Повтор резерва и повтор оплаты не списывают второй раз | `InventoryReserveTest`, `PaymentIdempotencyTest` |
+| Два резерва последней единицы, остаток не ниже нуля | `InventoryReserveTest` |
+| Запрещённый переход статуса не меняет заказ | `OrderSagaStatusTest` |
+
+Из корня репозитория: `.\mvnw.cmd test`.
