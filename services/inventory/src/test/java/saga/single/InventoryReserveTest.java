@@ -1,4 +1,4 @@
-package saga;
+package saga.single;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +10,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import saga.InventoryApplication;
+import saga.InventoryService;
 import saga.commands.CreateReserveCommand;
 import saga.entity.Item;
 import saga.events.order.OrderLine;

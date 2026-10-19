@@ -96,14 +96,15 @@ docker compose up -d
 
 ## Тесты
 
-Критичные пути саги проверяются на PostgreSQL и Kafka из Testcontainers. Каждый сервис поднимается своим контекстом, чужой шаг приходит сообщением в брокер теста.
+Изолированные тесты лежат в пакете `saga.single` своего сервиса: один Spring-контекст, PostgreSQL и Kafka из Testcontainers. Сквозной путь — модуль `e2e`, класс `SagaFlowIT`: три процесса (`order`, `inventory`, `payment`), заказ через `POST /order`, склад и оплата отвечают сами.
 
 | Путь | Тест |
 |------|------|
-| Заказ доходит до `CONFIRMED` | `OrderHappyPathTest` |
-| Отказ резерва и отказ оплаты, возврат остатка | `OrderCompensationTest`, `InventoryCompensationTest`, `PaymentFailureTest` |
+| Заказ доходит до `CONFIRMED` | `SagaFlowIT` |
+| Отказ резерва и отказ оплаты, возврат остатка | `SagaFlowIT` |
+| Локальный отказ резерва и отказ оплаты | `InventoryCompensationTest`, `PaymentFailureTest` |
 | Повтор резерва и повтор оплаты не списывают второй раз | `InventoryReserveTest`, `PaymentIdempotencyTest` |
 | Два резерва последней единицы, остаток не ниже нуля | `InventoryReserveTest` |
 | Запрещённый переход статуса не меняет заказ | `OrderSagaStatusTest` |
 
-Из корня репозитория: `.\mvnw.cmd test`.
+Из корня репозитория: `.\mvnw.cmd test` (пакет `saga.single`). Сквозной путь: `.\mvnw.cmd -pl services/e2e -am verify`.
