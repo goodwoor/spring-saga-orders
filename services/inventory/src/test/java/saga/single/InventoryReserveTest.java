@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -60,7 +59,7 @@ class InventoryReserveTest {
 
     /**
      * Сценарий: два заказа одновременно резервируют последнюю единицу одного нового товара.
-     * Закрывает: проигравший вызов бросает NotEnoughAmountException или OptimisticLockingFailureException, остаток не ниже нуля, резерв на товар ровно один.
+     * Закрывает: проигравший вызов бросает NotEnoughAmountException, остаток не ниже нуля, резерв на товар ровно один.
      */
     @Test
     void raceLastUnitThrowsOnceAndKeepsSingleReservation() throws Exception {
@@ -234,8 +233,7 @@ class InventoryReserveTest {
     private static boolean isAcceptedLoss(Throwable error) {
         Throwable current = error;
         while (current != null) {
-            if (current instanceof NotEnoughAmountException
-                    || current instanceof OptimisticLockingFailureException) {
+            if (current instanceof NotEnoughAmountException) {
                 return true;
             }
             Throwable cause = current.getCause();

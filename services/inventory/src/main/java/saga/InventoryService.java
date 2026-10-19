@@ -4,8 +4,6 @@ import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import saga.commands.CreateReserveCommand;
 import saga.commands.RevertReserveCommand;
@@ -59,13 +57,7 @@ public class InventoryService {
     }
 
 
-    @Retryable(
-            includes = OptimisticLockingFailureException.class,
-            maxRetries = 4,
-            delay = 20,
-            multiplier = 2
-    )
-    @Transactional
+    @Transactional(rollbackOn = Exception.class)
     public void reserveAndSendEvent(CreateReserveCommand command)
             throws ItemsNotFoundException, NotEnoughAmountException
     {
@@ -90,6 +82,7 @@ public class InventoryService {
 
         List<Long> itemsIds = command.orderItems().stream()
                 .map(OrderLine::itemId)
+                .sorted()
                 .toList();
 
         Map<Long, Integer> reservedAmountByItemId = command.orderItems().stream()
@@ -100,7 +93,7 @@ public class InventoryService {
                         )
                 );
 
-        List<Item> itemsToReserve = itemsRepository.findAllById(itemsIds);
+        List<Item> itemsToReserve = itemsRepository.findAllByIdForUpdate(itemsIds);
 
         if (itemsToReserve.size() != command.orderItems().size()) {
             throw new ItemsNotFoundException(
@@ -142,13 +135,7 @@ public class InventoryService {
         reservationRepository.saveAll(reservations);
     }
 
-    @Retryable(
-            includes = OptimisticLockingFailureException.class,
-            maxRetries = 4,
-            delay = 20,
-            multiplier = 2
-    )
-    @Transactional
+    @Transactional(rollbackOn = Exception.class)
     public void revertReserveAndSendEvent(RevertReserveCommand command) {
         revertReserve(command.orderId());
         ReserveReverted reserveRevertedEvent = mapper.toReserveReverted(command);
@@ -157,11 +144,22 @@ public class InventoryService {
 
     private void revertReserve(Long orderId) {
         List<Reservation> allReservations = reservationRepository.findAllByOrderId(orderId);
+        if (allReservations.isEmpty()) {
+            return;
+        }
 
-        for (Reservation reservation: allReservations) {
-            Item reservationItem = reservation.getItem();
-            Integer newAmount = reservationItem.getAmount() + reservation.getReservedAmount();
-            reservationItem.setAmount(newAmount);
+        List<Long> itemIds = allReservations.stream()
+                .map(reservation -> reservation.getItem().getId())
+                .distinct()
+                .sorted()
+                .toList();
+
+        Map<Long, Item> lockedItems = itemsRepository.findAllByIdForUpdate(itemIds).stream()
+                .collect(Collectors.toMap(Item::getId, item -> item));
+
+        for (Reservation reservation : allReservations) {
+            Item reservationItem = lockedItems.get(reservation.getItem().getId());
+            reservationItem.setAmount(reservationItem.getAmount() + reservation.getReservedAmount());
         }
 
         reservationRepository.deleteAll(allReservations);

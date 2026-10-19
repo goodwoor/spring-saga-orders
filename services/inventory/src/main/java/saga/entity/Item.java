@@ -15,9 +15,6 @@ public class Item {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Version
-    private Long version;
-
     @OneToMany(mappedBy = "item")
     private List<Reservation> reservations = new ArrayList<>();
 

@@ -17,7 +17,7 @@ import saga.events.payment.PaymentFailed;
 import saga.events.payment.PaymentFailedReason;
 
 @Component
-@KafkaListener(topics = "payment-commands", groupId = "payment-service")
+@KafkaListener(topics = "payment-commands", groupId = "payment-service", concurrency = "3")
 public class PaymentCommandListener {
     private static final Logger log = LoggerFactory.getLogger(PaymentCommandListener.class);
     private final PaymentService service;

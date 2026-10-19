@@ -25,7 +25,7 @@ import saga.events.inventory.ReserveCreated;
 import saga.events.inventory.ReserveFailed;
 
 @Component
-@KafkaListener(topics = {"inventory-events", "payment-events"}, groupId = "order-service")
+@KafkaListener(topics = {"inventory-events", "payment-events"}, groupId = "order-service", concurrency = "3")
 public class OrderSaga {
     private static final Logger log = LoggerFactory.getLogger(OrderSaga.class);
     private final OutBoxProducer outBoxProducer;

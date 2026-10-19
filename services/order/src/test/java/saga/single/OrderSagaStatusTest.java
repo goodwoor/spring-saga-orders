@@ -180,7 +180,7 @@ class OrderSagaStatusTest {
             long rowsBefore = outboxCount(order.getId());
 
             orderSaga.onRevertReserveFailed(
-                    new RevertReserveFailed(order.getId(), ReserveFailedReason.TOO_MANY_ATTEMPTS)
+                    new RevertReserveFailed(order.getId(), ReserveFailedReason.NOT_ENOUGH_AMOUNT)
             );
 
             assertEquals(status, statusOf(order.getId()));

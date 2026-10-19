@@ -1,5 +1,5 @@
 package saga.events.inventory;
 
 public enum ReserveFailedReason {
-    NOT_ENOUGH_AMOUNT, ITEMS_NOT_FOUND, TOO_MANY_ATTEMPTS
+    NOT_ENOUGH_AMOUNT, ITEMS_NOT_FOUND
 }
