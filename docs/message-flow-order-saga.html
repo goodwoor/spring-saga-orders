@@ -80,7 +80,7 @@ sequenceDiagram
     O->>K: OrderCancelled
   </pre>
 
-  <h2>Откат резерва не прошёл</h2>
+  <h2>Откат резерва не прошёл (техническая ошибка)</h2>
   <pre class="mermaid">
 sequenceDiagram
     participant O as Order
@@ -90,10 +90,11 @@ sequenceDiagram
     Note over O: AWAITING_PAYMENT, оплата уже FAIL, резерв на складе
     O->>K: RevertReserveCommand
     K->>I: RevertReserveCommand
-    I->>K: RevertReserveFailed
-    K->>O: RevertReserveFailed
-    Note over O,I: статус не меняем, товар остаётся зарезервирован
+    I->>I: ошибка, транзакция откатилась
+    K->>I: повторы по умолчанию, затем сообщение пропущено
+    Note over O,I: событие не уходит, заказ остаётся AWAITING_PAYMENT, товар зарезервирован
   </pre>
+  <p>Класс <code>RevertReserveFailed</code> и его обработчик в Order остались, но склад это событие больше не шлёт: оно выпускалось после лимита повторов по <code>@Version</code>, который заменён на <code>FOR UPDATE</code>.</p>
 
   <h2 id="status-machine">Схема допустимых переходов статусов</h2>
   <pre class="mermaid">
