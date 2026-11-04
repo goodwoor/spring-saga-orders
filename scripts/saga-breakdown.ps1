@@ -1,5 +1,5 @@
 # Saga latency split by step, from outbox timestamps of the three databases.
-# Run after measure-load.ps1 (or any orders). Does not start Docker or the apps.
+# Run after scripts/load/run-ceiling.ps1 (or any orders). Does not start Docker or the apps.
 #
 #   relay   = outbox.status_changed_date - outbox.created_at   (poller wait + send + ack)
 #   transit = created_at of the next outbox row - PROCESSED of the previous one
