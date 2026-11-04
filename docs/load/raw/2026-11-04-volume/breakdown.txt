@@ -1,0 +1,35 @@
+﻿Orders in window: 205, skipped (unfinished or NEW rows): 0
+Milliseconds. relay = outbox row waits for the poller + send + ack; transit = Kafka + next handler.
+
+[CONFIRMED] total (orders.status_changed - created)        n=125  p50=   233.5 p95=   344.0 mean=   243.7 max=   727.7
+[CONFIRMED] start  POST tx -> CreateReserveCommand         n=125  p50=     5.2 p95=     9.9 mean=     6.1 max=    84.2
+[CONFIRMED] 1. relay   order:CreateReserveCommand          n=125  p50=    44.9 p95=    89.3 mean=    47.7 max=   127.7
+[CONFIRMED] 1. transit -> inventory:ReserveCreated         n=125  p50=    12.7 p95=    66.7 mean=    21.2 max=   155.7
+[CONFIRMED] 2. relay   inventory:ReserveCreated            n=125  p50=    42.8 p95=    82.7 mean=    45.1 max=   109.1
+[CONFIRMED] 2. transit -> order:CreatePaymentCommand       n=125  p50=     5.0 p95=    29.9 mean=     9.1 max=    58.8
+[CONFIRMED] 3. relay   order:CreatePaymentCommand          n=125  p50=    46.1 p95=    89.4 mean=    49.3 max=    97.0
+[CONFIRMED] 3. transit -> payment:PaymentCompleted         n=125  p50=     8.1 p95=    42.2 mean=    14.2 max=   131.3
+[CONFIRMED] 4. relay   payment:PaymentCompleted            n=125  p50=    40.3 p95=    73.7 mean=    41.6 max=    89.2
+[CONFIRMED] 4. transit -> order:OrderConfirmed             n=125  p50=     5.7 p95=    33.8 mean=    10.4 max=    58.2
+[CONFIRMED] sum relay                                      n=125  p50=   179.9 p95=   259.7 mean=   183.8 max=   337.8
+[CONFIRMED] sum transit                                    n=125  p50=    37.9 p95=   131.3 mean=    55.0 max=   307.8
+[CONFIRMED] path: CreateReserveCommand > ReserveCreated > CreatePaymentCommand > PaymentCompleted > OrderConfirmed (ord
+ers: 125)
+[CANCELLED] total (orders.status_changed - created)        n=80   p50=   403.4 p95=   520.6 mean=   392.3 max=   605.8
+[CANCELLED] start  POST tx -> CreateReserveCommand         n=80   p50=     4.0 p95=    11.1 mean=     4.9 max=    16.6
+[CANCELLED] 1. relay   order:CreateReserveCommand          n=80   p50=    47.1 p95=    79.5 mean=    46.9 max=    91.6
+[CANCELLED] 1. transit -> inventory:ReserveCreated         n=80   p50=    18.5 p95=    60.9 mean=    28.8 max=   221.4
+[CANCELLED] 2. relay   inventory:ReserveCreated            n=80   p50=    45.5 p95=    86.7 mean=    47.4 max=   113.1
+[CANCELLED] 2. transit -> order:CreatePaymentCommand       n=80   p50=     4.9 p95=    26.0 mean=     9.2 max=    41.9
+[CANCELLED] 3. relay   order:CreatePaymentCommand          n=80   p50=    44.4 p95=    88.5 mean=    47.3 max=    97.1
+[CANCELLED] 3. transit -> payment:PaymentFailed            n=80   p50=     8.3 p95=    32.4 mean=    13.0 max=    46.6
+[CANCELLED] 4. relay   payment:PaymentFailed               n=80   p50=    35.7 p95=    85.9 mean=    43.7 max=   104.0
+[CANCELLED] 4. transit -> order:RevertReserveCommand       n=80   p50=     8.4 p95=    34.4 mean=    12.7 max=    43.7
+[CANCELLED] 5. relay   order:RevertReserveCommand          n=80   p50=    30.7 p95=    81.8 mean=    36.9 max=   102.9
+[CANCELLED] 5. transit -> inventory:ReserveReverted        n=80   p50=    18.4 p95=   147.6 mean=    39.2 max=   174.2
+[CANCELLED] 6. relay   inventory:ReserveReverted           n=80   p50=    49.3 p95=    94.5 mean=    51.8 max=   108.1
+[CANCELLED] 6. transit -> order:OrderCancelled             n=80   p50=     8.4 p95=    29.5 mean=    11.5 max=    48.2
+[CANCELLED] sum relay                                      n=80   p50=   274.5 p95=   357.5 mean=   274.0 max=   388.3
+[CANCELLED] sum transit                                    n=80   p50=    94.7 p95=   234.6 mean=   114.4 max=   296.6
+[CANCELLED] path: CreateReserveCommand > ReserveCreated > CreatePaymentCommand > PaymentFailed > RevertReserveCommand >
+ ReserveReverted > OrderCancelled (orders: 80)

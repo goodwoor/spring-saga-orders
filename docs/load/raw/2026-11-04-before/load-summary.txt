@@ -1,0 +1,96 @@
+﻿=== RUN ===
+startedUtc=2026-11-04T09:50:38.1971206Z
+stand=docker-apps
+os=Microsoft Windows NT 10.0.19045.0
+cpu=12th Gen Intel(R) Core(TM) i5-12400F logical=12
+ramGb=15.9
+java=openjdk version "21.0.12.1" 2026-08-18 LTS
+percentile=nearest-rank
+warmup=5 readN=50 seqN=20 burstN=30 burstC=5 deadlineSec=60 pollMs=200
+itemId=2 itemName=USB-C Cable itemAmount=200 itemCost=150.00 stockNeed=85
+multi2Seq n=10 each=5 itemIds=1,3
+multi5Seq n=15 each=3 itemIds=4,5,6,7,8
+multi5Burst n=15 c=3 each=3 itemIds=9,10,11,12,13
+multi10Burst n=30 c=5 each=3 itemIds=14,15,4,5,6,7,8,9,10,11
+multi10Pay n=30 c=5 each=3 itemIds=12,13,14,15,1,3,4,5,6,7
+seedOrderId=1 ordersBeforeWarmup=687
+outboxProbe orders=0 payments=0 inventory=0
+dockerPs<<
+saga-orders-gateway-1|saga/gateway:0.0.1-SNAPSHOT|0.0.0.0:8081->8081/tcp, [::]:8081->8081/tcp
+saga-orders-payment-1|saga/payment:0.0.1-SNAPSHOT|0.0.0.0:8084->8084/tcp, [::]:8084->8084/tcp
+saga-orders-inventory-1|saga/inventory:0.0.1-SNAPSHOT|0.0.0.0:8082->8082/tcp, [::]:8082->8082/tcp
+saga-orders-order-1|saga/order:0.0.1-SNAPSHOT|0.0.0.0:8083->8083/tcp, [::]:8083->8083/tcp
+saga-orders-demo-ui-1|node:22-alpine|0.0.0.0:5173->5173/tcp, [::]:5173->5173/tcp
+saga-orders-postgres-payment-1|postgres:16|0.0.0.0:5434->5432/tcp, [::]:5434->5432/tcp
+saga-orders-postgres-inventory-1|postgres:16|0.0.0.0:5435->5432/tcp, [::]:5435->5432/tcp
+saga-orders-postgres-order-1|postgres:16|0.0.0.0:5433->5432/tcp, [::]:5433->5432/tcp
+saga-orders-kafka-1|confluentinc/cp-kafka:latest|0.0.0.0:9092->9092/tcp, [::]:9092->9092/tcp
+dockerPs>>
+readSize orders=692 payments=662 items=15
+GET /inventory n=50 errors=0 errPct=0.00 p50=6.9 p95=10.7 p99=11.7 mean=7.1 min=5.6 max=11.7 rps=133.43 wallSec=0.37
+GET /payment n=50 errors=0 errPct=0.00 p50=9.8 p95=14.4 p99=21.7 mean=10.1 min=7.6 max=21.7 rps=95.99 wallSec=0.52
+GET /order n=50 errors=0 errPct=0.00 p50=11.3 p95=19.7 p99=21.9 mean=12.0 min=8.2 max=21.9 rps=80.89 wallSec=0.62
+GET /order/{id} n=50 errors=0 errPct=0.00 p50=5.6 p95=7.4 p99=7.8 mean=5.8 min=5.0 max=7.8 rps=164.40 wallSec=0.30
+happy sequential-journey n=20 errors=0 errPct=0.00 p50=553.2 p95=955.6 p99=1542.8 mean=675.0 min=520.3 max=1542.8 rps=1.48 wallSec=13.52
+happy sequential-post n=20 errors=0 errPct=0.00 p50=95.7 p95=175.3 p99=435.7 mean=115.2 min=79.6 max=435.7 rps=8.68 wallSec=2.30
+happy sequential reached=20 unfinished=0 otherTerminal=0 httpErrors=0 wallSec=13.52 itemIds=2
+happy burst-journey n=30 errors=0 errPct=0.00 p50=3631.7 p95=6730.8 p99=6784.2 mean=4003.4 min=1859.3 max=6784.2 rps=3.60 wallSec=8.33
+happy burst-post n=30 errors=0 errPct=0.00 p50=134.3 p95=1281.7 p99=1291.3 mean=295.7 min=90.2 max=1291.3 rps=16.03 wallSec=1.87
+happy burst reached=30 unfinished=0 otherTerminal=0 httpErrors=0 perSec=3.60 lastEndSec=8.33 itemIds=2
+happy outbox t=0.08 orders=11 payments=2 inventory=3 zero=False
+happy outbox t=1.50 orders=1 payments=1 inventory=2 zero=False
+happy outbox t=2.88 orders=4 payments=1 inventory=1 zero=False
+happy outbox t=4.20 orders=4 payments=1 inventory=2 zero=False
+happy outbox t=5.51 orders=3 payments=1 inventory=0 zero=False
+happy outbox t=6.81 orders=0 payments=0 inventory=0 zero=True
+happy outbox drainSec=6.81
+payment-fail sequential-journey n=20 errors=0 errPct=0.00 p50=774.8 p95=1905.2 p99=2044.8 mean=980.6 min=748.9 max=2044.8 rps=1.02 wallSec=19.63
+payment-fail sequential-post n=20 errors=0 errPct=0.00 p50=91.8 p95=114.6 p99=576.4 mean=115.7 min=65.8 max=576.4 rps=8.64 wallSec=2.31
+payment-fail sequential reached=20 unfinished=0 otherTerminal=0 httpErrors=0 wallSec=19.63 itemIds=2
+payment-fail burst-journey n=30 errors=0 errPct=0.00 p50=8300.8 p95=10314.4 p99=10541.4 mean=8285.2 min=5426.3 max=10541.4 rps=2.69 wallSec=11.16
+payment-fail burst-post n=30 errors=0 errPct=0.00 p50=142.3 p95=203.9 p99=204.0 mean=132.6 min=56.3 max=204.0 rps=36.53 wallSec=0.82
+payment-fail burst reached=30 unfinished=0 otherTerminal=0 httpErrors=0 perSec=2.69 lastEndSec=11.16 itemIds=2
+payment-fail outbox t=0.02 orders=11 payments=3 inventory=3 zero=False
+payment-fail outbox t=1.36 orders=3 payments=2 inventory=2 zero=False
+payment-fail outbox t=2.72 orders=2 payments=1 inventory=1 zero=False
+payment-fail outbox t=4.04 orders=3 payments=1 inventory=2 zero=False
+payment-fail outbox t=5.34 orders=4 payments=0 inventory=2 zero=False
+payment-fail outbox t=6.65 orders=4 payments=1 inventory=2 zero=False
+payment-fail outbox t=7.96 orders=2 payments=0 inventory=1 zero=False
+payment-fail outbox t=9.37 orders=2 payments=0 inventory=2 zero=False
+payment-fail outbox t=10.69 orders=0 payments=0 inventory=0 zero=True
+payment-fail outbox drainSec=10.69
+multi2-seq sequential-journey n=10 errors=0 errPct=0.00 p50=541.4 p95=769.2 p99=769.2 mean=604.9 min=513.2 max=769.2 rps=1.65 wallSec=6.06
+multi2-seq sequential-post n=10 errors=0 errPct=0.00 p50=91.4 p95=144.1 p99=144.1 mean=96.4 min=80.8 max=144.1 rps=10.37 wallSec=0.96
+multi2-seq sequential reached=10 unfinished=0 otherTerminal=0 httpErrors=0 wallSec=6.06 itemIds=1,3
+multi5-seq sequential-journey n=15 errors=0 errPct=0.00 p50=554.1 p95=1762.2 p99=1762.2 mean=734.2 min=508.6 max=1762.2 rps=1.36 wallSec=11.03
+multi5-seq sequential-post n=15 errors=0 errPct=0.00 p50=94.2 p95=230.9 p99=230.9 mean=102.0 min=77.6 max=230.9 rps=9.80 wallSec=1.53
+multi5-seq sequential reached=15 unfinished=0 otherTerminal=0 httpErrors=0 wallSec=11.03 itemIds=4,5,6,7,8
+multi5-burst burst-journey n=15 errors=0 errPct=0.00 p50=1487.4 p95=2053.8 p99=2053.8 mean=1568.6 min=1197.4 max=2053.8 rps=6.55 wallSec=2.29
+multi5-burst burst-post n=15 errors=0 errPct=0.00 p50=169.9 p95=260.4 p99=260.4 mean=163.0 min=46.5 max=260.4 rps=16.90 wallSec=0.89
+multi5-burst burst reached=15 unfinished=0 otherTerminal=0 httpErrors=0 perSec=6.56 lastEndSec=2.29 itemIds=9,10,11,12,13
+multi5-burst outbox t=0.04 orders=14 payments=3 inventory=4 zero=False
+multi5-burst outbox t=1.39 orders=0 payments=0 inventory=0 zero=True
+multi5-burst outbox drainSec=1.39
+multi10-burst burst-journey n=30 errors=0 errPct=0.00 p50=3673.5 p95=5605.7 p99=5609.6 mean=3687.9 min=881.0 max=5609.6 rps=4.82 wallSec=6.23
+multi10-burst burst-post n=30 errors=0 errPct=0.00 p50=145.0 p95=176.7 p99=190.0 mean=128.1 min=38.6 max=190.0 rps=34.54 wallSec=0.87
+multi10-burst burst reached=30 unfinished=0 otherTerminal=0 httpErrors=0 perSec=4.82 lastEndSec=6.23 itemIds=14,15,4,5,6,7,8,9,10,11
+multi10-burst outbox t=0.01 orders=19 payments=1 inventory=4 zero=False
+multi10-burst outbox t=1.34 orders=2 payments=3 inventory=2 zero=False
+multi10-burst outbox t=2.63 orders=3 payments=2 inventory=2 zero=False
+multi10-burst outbox t=3.95 orders=1 payments=1 inventory=0 zero=False
+multi10-burst outbox t=5.25 orders=2 payments=0 inventory=0 zero=False
+multi10-burst outbox t=6.56 orders=0 payments=0 inventory=0 zero=True
+multi10-burst outbox drainSec=6.56
+multi10-pay burst-journey n=30 errors=0 errPct=0.00 p50=5280.1 p95=6395.9 p99=6406.3 mean=5379.9 min=3482.6 max=6406.3 rps=4.34 wallSec=6.91
+multi10-pay burst-post n=30 errors=0 errPct=0.00 p50=126.2 p95=213.5 p99=213.9 mean=130.7 min=36.5 max=213.9 rps=34.53 wallSec=0.87
+multi10-pay burst reached=30 unfinished=0 otherTerminal=0 httpErrors=0 perSec=4.34 lastEndSec=6.91 itemIds=12,13,14,15,1,3,4,5,6,7
+multi10-pay outbox t=0.02 orders=5 payments=3 inventory=3 zero=False
+multi10-pay outbox t=1.40 orders=6 payments=3 inventory=5 zero=False
+multi10-pay outbox t=2.71 orders=3 payments=1 inventory=5 zero=False
+multi10-pay outbox t=4.02 orders=3 payments=0 inventory=0 zero=False
+multi10-pay outbox t=5.47 orders=2 payments=0 inventory=0 zero=False
+multi10-pay outbox t=6.78 orders=0 payments=0 inventory=0 zero=True
+multi10-pay outbox drainSec=6.78
+finishedUtc=2026-11-04T09:52:14.7180039Z
+=== DONE ===

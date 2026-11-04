@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
-      - ./data:/var/lib/postgresql/data
+      - postgres-inventory-data:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U postgres -d inventory" ]
       interval: 5s
@@ -34,3 +34,9 @@ services:
       kafka:
         condition: service_started
     profiles: [ "apps" ]
+
+# Том Docker, а не папка проекта: на диске Windows каждый коммит ждёт fdatasync ~17 мс против ~3 мс.
+# Явное name — один том и в режиме IDEA, и в полном Docker.
+volumes:
+  postgres-inventory-data:
+    name: saga-postgres-inventory-data

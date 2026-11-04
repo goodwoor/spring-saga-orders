@@ -31,7 +31,8 @@ public class OutBoxScheduler {
         this.mapper = mapper;
     }
 
-    @Scheduled(fixedDelayString = "50")
+    // Пустой проход — один SELECT по индексу без записи, ~0,03 мс; 100 проходов в секунду базе не заметны
+    @Scheduled(fixedDelayString = "10")
     public void sendOutBoxMessages() {
         List<OutBoxItem> messagesForSend = outBoxRepository.findTop100ByStatusOrderByIdAsc(
                 OutBoxItemStatus.NEW

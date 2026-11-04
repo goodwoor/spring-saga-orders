@@ -1,0 +1,21 @@
+﻿Orders in window: 90, skipped (unfinished or NEW rows): 0
+Milliseconds. relay = outbox row waits for the poller + send + ack; transit = Kafka + next handler.
+
+[CANCELLED] total (orders.status_changed - created)        n=90   p50=   272.6 p95=   474.1 mean=   300.2 max=   481.5
+[CANCELLED] start  POST tx -> CreateReserveCommand         n=90   p50=     2.5 p95=     6.9 mean=     2.8 max=     9.9
+[CANCELLED] 1. relay   order:CreateReserveCommand          n=90   p50=    20.7 p95=    36.9 mean=    22.9 max=    40.6
+[CANCELLED] 1. transit -> inventory:ReserveCreated         n=90   p50=    21.8 p95=    88.3 mean=    29.3 max=   112.4
+[CANCELLED] 2. relay   inventory:ReserveCreated            n=90   p50=    22.2 p95=    35.5 mean=    23.2 max=    38.8
+[CANCELLED] 2. transit -> order:CreatePaymentCommand       n=90   p50=    10.2 p95=    54.5 mean=    17.7 max=    89.3
+[CANCELLED] 3. relay   order:CreatePaymentCommand          n=90   p50=    26.2 p95=    43.4 mean=    27.6 max=    46.7
+[CANCELLED] 3. transit -> payment:PaymentFailed            n=90   p50=     6.8 p95=    25.9 mean=    10.4 max=    33.4
+[CANCELLED] 4. relay   payment:PaymentFailed               n=90   p50=    27.5 p95=    41.3 mean=    26.7 max=    46.6
+[CANCELLED] 4. transit -> order:RevertReserveCommand       n=90   p50=    32.2 p95=   104.0 mean=    38.5 max=   121.6
+[CANCELLED] 5. relay   order:RevertReserveCommand          n=90   p50=    25.6 p95=    43.2 mean=    25.5 max=    46.3
+[CANCELLED] 5. transit -> inventory:ReserveReverted        n=90   p50=    15.2 p95=    48.8 mean=    18.5 max=    97.3
+[CANCELLED] 6. relay   inventory:ReserveReverted           n=90   p50=    24.1 p95=    38.4 mean=    24.6 max=    46.8
+[CANCELLED] 6. transit -> order:OrderCancelled             n=90   p50=    19.3 p95=    95.7 mean=    32.9 max=   107.7
+[CANCELLED] sum relay                                      n=90   p50=   148.8 p95=   184.9 mean=   150.5 max=   191.5
+[CANCELLED] sum transit                                    n=90   p50=   129.8 p95=   323.2 mean=   147.3 max=   344.6
+[CANCELLED] path: CreateReserveCommand > ReserveCreated > CreatePaymentCommand > PaymentFailed > RevertReserveCommand >
+ ReserveReverted > OrderCancelled (orders: 90)

@@ -1,0 +1,17 @@
+﻿Orders in window: 30, skipped (unfinished or NEW rows): 0
+Milliseconds. relay = outbox row waits for the poller + send + ack; transit = Kafka + next handler.
+
+[CONFIRMED] total (orders.status_changed - created)        n=30   p50=   220.8 p95=   296.3 mean=   228.2 max=   314.2
+[CONFIRMED] start  POST tx -> CreateReserveCommand         n=30   p50=     5.7 p95=    12.3 mean=     6.7 max=    14.2
+[CONFIRMED] 1. relay   order:CreateReserveCommand          n=30   p50=    29.9 p95=    79.3 mean=    37.3 max=    83.6
+[CONFIRMED] 1. transit -> inventory:ReserveCreated         n=30   p50=    37.8 p95=   122.3 mean=    50.5 max=   145.0
+[CONFIRMED] 2. relay   inventory:ReserveCreated            n=30   p50=    29.5 p95=    64.7 mean=    31.3 max=    66.5
+[CONFIRMED] 2. transit -> order:CreatePaymentCommand       n=30   p50=     4.4 p95=    29.8 mean=    10.9 max=    37.5
+[CONFIRMED] 3. relay   order:CreatePaymentCommand          n=30   p50=    32.0 p95=    67.1 mean=    36.7 max=    94.5
+[CONFIRMED] 3. transit -> payment:PaymentCompleted         n=30   p50=     7.0 p95=    42.0 mean=    11.0 max=    42.3
+[CONFIRMED] 4. relay   payment:PaymentCompleted            n=30   p50=    27.8 p95=    55.8 mean=    31.9 max=    55.8
+[CONFIRMED] 4. transit -> order:OrderConfirmed             n=30   p50=     6.2 p95=    43.4 mean=    13.3 max=    57.2
+[CONFIRMED] sum relay                                      n=30   p50=   142.6 p95=   191.4 mean=   137.3 max=   194.8
+[CONFIRMED] sum transit                                    n=30   p50=    77.6 p95=   178.9 mean=    85.7 max=   182.1
+[CONFIRMED] path: CreateReserveCommand > ReserveCreated > CreatePaymentCommand > PaymentCompleted > OrderConfirmed (ord
+ers: 30)
