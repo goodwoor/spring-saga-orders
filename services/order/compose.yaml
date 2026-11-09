@@ -20,6 +20,9 @@ services:
   # ==== Приложения — только при --profile apps ====
   order:
     image: saga/order:0.0.1-SNAPSHOT
+    # Без лимита Paketo считает кучу от всей памяти Docker VM (~5,9 ГБ на каждую JVM) — 9.11 Order
+    # раздулся на GET /order и уронил всю VM. С лимитом куча ≈ 400 МБ, при OOM падает только контейнер.
+    mem_limit: 1g
     ports:
       - "8083:8083"
     environment:
@@ -28,6 +31,8 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # В IDEA show-sql остаётся из application.properties; в Docker — тысячи строк/с опроса outbox.
+      SPRING_JPA_SHOW_SQL: "false"
     depends_on:
       postgres-order:
         condition: service_healthy

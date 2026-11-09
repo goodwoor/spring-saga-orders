@@ -13,7 +13,7 @@ import { demoScenarios } from './demoScenarios';
 import { useOrderPolling } from './hooks/useOrderPolling';
 import type { ItemResponse, OrderResponse, PaymentResponse } from './types';
 
-const LIST_REFRESH_MS = 2500;
+const LIST_REFRESH_MS = 5000;
 
 export default function App() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
@@ -44,10 +44,26 @@ export default function App() {
     }
   }, []);
 
+  // Следующий запрос — только после ответа на предыдущий: setInterval при медленном
+  // бэкенде копил запросы (9.11 так раздуло Order до OOM).
   useEffect(() => {
-    void refreshLists();
-    const id = setInterval(() => void refreshLists(), LIST_REFRESH_MS);
-    return () => clearInterval(id);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const tick = async () => {
+      await refreshLists();
+      if (!cancelled) {
+        timer = setTimeout(tick, LIST_REFRESH_MS);
+      }
+    };
+
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
   }, [refreshLists]);
 
   const runDemo = async (key: keyof typeof demoScenarios) => {
@@ -94,6 +110,7 @@ export default function App() {
           loading={loading}
           error={pollError}
           selectedId={selectedOrderId}
+          inventory={inventory}
         />
       </div>
 

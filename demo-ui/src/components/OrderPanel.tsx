@@ -1,10 +1,12 @@
-import type { OrderResponse } from '../types';
+import { useMemo } from 'react';
+import type { ItemResponse, OrderResponse } from '../types';
 
 type Props = {
   order: OrderResponse | null;
   loading: boolean;
   error: string | null;
   selectedId: number | null;
+  inventory: ItemResponse[];
 };
 
 function formatInstant(iso: string): string {
@@ -15,7 +17,19 @@ function formatInstant(iso: string): string {
   }
 }
 
-export function OrderPanel({ order, loading, error, selectedId }: Props) {
+export function OrderPanel({
+  order,
+  loading,
+  error,
+  selectedId,
+  inventory,
+}: Props) {
+  // В заказе только itemId — название берём из уже загруженного списка склада.
+  const itemNames = useMemo(
+    () => new Map(inventory.map((item) => [item.id, item.name])),
+    [inventory],
+  );
+
   return (
     <section className="panel order-panel">
       <h2>Selected order</h2>
@@ -57,8 +71,13 @@ export function OrderPanel({ order, loading, error, selectedId }: Props) {
             <dd>
               <ul className="order-items-list">
                 {order.orderItems.map((line) => (
-                  <li key={line.id}>
-                    item #{line.itemId} × {line.amount} — {line.cost}
+                  <li key={line.id} className="order-item-line">
+                    <span className="order-item-name">
+                      {itemNames.get(line.itemId) ?? `item #${line.itemId}`}
+                    </span>
+                    <span className="order-item-meta">
+                      #{line.itemId} · {line.amount} × {line.cost}
+                    </span>
                   </li>
                 ))}
               </ul>

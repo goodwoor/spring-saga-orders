@@ -20,6 +20,7 @@ services:
   # ==== Приложения — только при --profile apps ====
   inventory:
     image: saga/inventory:0.0.1-SNAPSHOT
+    mem_limit: 1g  # иначе Paketo отдаёт куче почти всю память Docker VM, см. services/order/compose.yaml
     ports:
       - "8082:8082"
     environment:
@@ -28,6 +29,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_JPA_SHOW_SQL: "false"  # см. services/order/compose.yaml
     depends_on:
       postgres-inventory:
         condition: service_healthy

@@ -5,6 +5,9 @@ import type {
   PaymentResponse,
 } from './types';
 
+// Сервер отдаёт последние N (по умолчанию 50, максимум 200), новые сверху.
+const LIST_LIMIT = 20;
+
 async function handleJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const text = await response.text();
@@ -14,7 +17,7 @@ async function handleJson<T>(response: Response): Promise<T> {
 }
 
 export async function fetchOrders(): Promise<OrderResponse[]> {
-  return handleJson(await fetch('/order'));
+  return handleJson(await fetch(`/order?limit=${LIST_LIMIT}`));
 }
 
 export async function fetchOrder(id: number): Promise<OrderResponse | null> {
@@ -41,5 +44,5 @@ export async function fetchInventory(): Promise<ItemResponse[]> {
 }
 
 export async function fetchPayments(): Promise<PaymentResponse[]> {
-  return handleJson(await fetch('/payment'));
+  return handleJson(await fetch(`/payment?limit=${LIST_LIMIT}`));
 }

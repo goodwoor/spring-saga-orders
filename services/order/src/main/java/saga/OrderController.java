@@ -31,8 +31,10 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<OrderResponse>> getAllOrders() {
-        List<OrderResponse> response = orderService.findAllOrdersWithItems();
+    public ResponseEntity<List<OrderResponse>> getLatestOrders(
+            @RequestParam(defaultValue = "50") int limit
+    ) {
+        List<OrderResponse> response = orderService.findLatestOrdersWithItems(limit);
         return ResponseEntity.ok(response);
     }
 

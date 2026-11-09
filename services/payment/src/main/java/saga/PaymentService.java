@@ -3,6 +3,8 @@ package saga;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import saga.commands.CreatePaymentCommand;
 import saga.dto.PaymentResponse;
@@ -16,6 +18,7 @@ import java.util.List;
 @Service
 public class PaymentService {
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+    private static final int MAX_LIMIT = 200;
     private final PaymentRepository paymentRepository;
     private final PaymentMapper mapper;
 
@@ -28,8 +31,11 @@ public class PaymentService {
         this.mapper = mapper;
     }
 
-    public List<PaymentResponse> findAllPayments() {
-        List<Payment> payments = paymentRepository.findAll();
+    public List<PaymentResponse> findLatestPayments(int limit) {
+        int size = Math.clamp(limit, 1, MAX_LIMIT);
+        List<Payment> payments = paymentRepository
+                .findAll(PageRequest.of(0, size, Sort.by(Sort.Direction.DESC, "id")))
+                .getContent();
 
         List<PaymentResponse> paymentsDto = payments.stream()
                 .map(mapper::toPaymentResponse)
